@@ -14,12 +14,13 @@
 <button class="btn" type="submit">Send to builder</button><p id="m" style="margin:0;color:var(--muted)"></p></form>
 <section style="padding:24px 0"><h3>Requests <span id="live" style="font-size:.8rem;color:var(--muted)"></span></h3><div id="list"></div></section>
 </main>
+<script src="teamkey.js"></script>
 <script>
-const k = new URLSearchParams(location.search).get("k") || "";
+const k = window.teamKey;
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"})[c]);
 async function load() {
   const r = await fetch("/api/ask?k=" + encodeURIComponent(k));
-  if (r.status === 403) { document.getElementById("list").textContent = "Missing team key: use the full link the builder sent."; return; }
+  if (r.status === 403) { clearInterval(timer); return askTeamKey(document.getElementById("list")); }
   const d = await r.json();
   document.getElementById("live").textContent = "· updated " + new Date().toLocaleTimeString();
   document.getElementById("list").innerHTML = (d.asks || []).slice().reverse().map((a) => `<div class="ask"><h4><span>#${a.id} ${esc(a.customer || "Customer")}</span><span class="st ${esc(a.status)}">${a.status === "live" ? "✅ live, send for review" : esc(a.status)}</span></h4>
@@ -31,5 +32,5 @@ document.getElementById("f").onsubmit = async (e) => {
   document.getElementById("m").textContent = r.ok ? "Sent! The builder has been notified." : "Failed to send. Try again.";
   if (r.ok) e.target.reset(); load();
 };
-load(); setInterval(load, 5000);
+const timer = setInterval(load, 5000); load();
 </script></body></html>
