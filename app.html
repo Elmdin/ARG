@@ -5,7 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Quotax · Quote builder</title>
   <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
-  <link rel="stylesheet" href="styles.css" />
+  <link rel="stylesheet" href="/styles.css" />
+  <script src="/i18n.js"></script>
   <style>
     [hidden] { display: none !important; }
     .app { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); gap: 20px; padding: 24px 0 48px; }
@@ -218,6 +219,7 @@
         checklist: [["Certificate of Electrical Safety / compliance", 1, 180, "certificate|compliance|ces|ccew|permit"], ["Travel / call-out", 1, 120, "travel|call-out|callout"], ["Small resi items (clips, junction boxes, glands)", 1, 160, "small|clips|junction|sundries|consumables"], ["Test & tag / commissioning", 1, 140, "test|commission"], ["Waste removal", 1, 90, "waste|rubbish|disposal"], ["Patching / make-good", 1, 220, "patch|make-good|make good"]] },
       "Trades / contractor": { seller: "Ridgeline Builders", client: "The Patel Residence", tax: 7.25, items: [["Materials: framing & drywall", 1, 6400], ["Labor (hours)", 120, 85], ["Electrical subcontract", 1, 3200], ["Permits & inspection", 1, 900], ["Waste removal", 1, 650]] },
     };
+    if (window.QX) QX.tpl(TEMPLATES);
     let industry = "Agency / consulting";
     let items = [];
 
@@ -498,7 +500,7 @@
       b.disabled = false; b.textContent = "🎯 Test with AI buyers";
     };
 
-    const fmtDate = (d) => d.toLocaleDateString(undefined, { year: "numeric", month: "long", day: "numeric" });
+    const fmtDate = (d) => d.toLocaleDateString((window.QX && QX.locale) || undefined, { year: "numeric", month: "long", day: "numeric" });
     const todayISO = () => { const t = new Date(); return t.getFullYear() + "-" + String(t.getMonth() + 1).padStart(2, "0") + "-" + String(t.getDate()).padStart(2, "0"); };
     let current = null;
 
@@ -615,7 +617,7 @@
     $("#share").onclick = async () => {
       if (!current) return;
       const { industry: _i, total: _t, ...data } = current;
-      const url = location.origin + "/app.html#q=" + encodeURIComponent(encode(data));
+      const url = location.origin + (window.QX && QX.lang === "es" ? "/es" : "/app.html") + "#q=" + encodeURIComponent(encode(data));
       $("#share-url").value = url;
       $("#share-box").hidden = false;
       $("#share-msg").textContent = "Link ready. Copy it and send it to your customer.";

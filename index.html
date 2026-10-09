@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Quotax · Quote builder</title>
   <meta http-equiv="refresh" content="0; url=/app.html" />
-  <script>location.replace("/app.html" + location.search + location.hash);</script>
+  <script>location.replace((/^\/es(\/|$)/.test(location.pathname) ? "/es" : "/app.html") + location.search + location.hash);</script>
 </head>
 <body style="background:#0b0b10;color:#ececf1;font-family:system-ui;padding:24px">
   <p><a href="/app.html" style="color:#9fb4ff">Open the Quotax quote builder →</a></p>

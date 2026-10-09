@@ -16,6 +16,22 @@ const SYSTEM = `You are role-playing a B2B buyer receiving a quote. Stay in char
 Reply with ONLY a JSON object, no prose:
 {"decision":"accept"|"negotiate"|"reject","walkaway_price":<number: the most you would actually pay in total, in the quote's currency>,"objection":"<main concern, max 15 words>","says":"<what you'd say to the seller, max 25 words>","would_fix":"<one specific change that would win you, max 15 words>"}`;
 
+const ROLES_ES = {
+  owner: "Dueño de negocio, sensible al precio", cfo: "Director financiero / compras", founder: "Fundadora con poco tiempo",
+  enterprise: "Comprador corporativo con lista de proveedores", repeat: "Cliente recurrente", skeptic: "Comprador nuevo y escéptico",
+};
+
+function fallbackEs(p, total) {
+  const w = Math.round(total * p.factor);
+  return {
+    decision: w >= total ? "accept" : w >= total * 0.92 ? "negotiate" : "reject",
+    walkaway_price: w,
+    objection: w >= total ? "Ninguna. Claro y con precio justo." : "El total supera lo que presupuesté.",
+    says: w >= total ? "Se ve bien. Envíe el contrato." : `Si se acerca a $${w.toLocaleString()}, podemos hablar.`,
+    would_fix: w >= total ? "Nada" : "Dividir en fases o agregar un plan de pagos",
+  };
+}
+
 function fallback(p, total) {
   const w = Math.round(total * p.factor);
   return {
@@ -44,6 +60,7 @@ module.exports = async (req, res) => {
   if (req.method !== "POST") return res.status(405).end();
   const q = req.body || {};
   const total = Number(q.total) || 0;
+  const es = q.lang === "es";
   if (!total) return res.status(400).json({ error: "quote total required" });
 
   const summary = [
@@ -62,14 +79,14 @@ module.exports = async (req, res) => {
       if (llm.enabled) {
         const prompt = `You are ${p.name}, ${p.role}: ${p.stance}.\n\nThe quote you received:\n${summary}`;
         for (let attempt = 0; attempt < 2 && !(v && Number(v.walkaway_price) > 0); attempt++) {
-          raw = await llm.complete(SYSTEM, prompt, 1500);
+          raw = await llm.complete(SYSTEM + (es ? "\nWrite objection, says and would_fix in natural Latin American business Spanish (usted). Keep decision values in English." : ""), prompt, 1500);
           v = llm.json(raw);
         }
       }
       const live = Boolean(v && Number(v.walkaway_price) > 0);
-      if (!live) v = fallback(p, total);
+      if (!live) v = (es ? fallbackEs : fallback)(p, total);
       if (!live && llm.enabled) console.error("simulate fallback", p.id, llm.lastError || "", raw.slice(0, 200));
-      return { ...p, ...v, walkaway_price: Math.round(Number(v.walkaway_price)), live, ...(live ? {} : { why: (llm.lastError || raw.slice(0, 160) || "empty").slice(0, 200) }) };
+      return { ...p, ...(es ? { role: ROLES_ES[p.id] } : {}), ...v, walkaway_price: Math.round(Number(v.walkaway_price)), live, ...(live ? {} : { why: (llm.lastError || raw.slice(0, 160) || "empty").slice(0, 200) }) };
     })
   );
 

@@ -9,7 +9,8 @@ module.exports = async (req, res) => {
   if (req.method !== "POST") return res.status(405).end();
   const job = String((req.body || {}).job || "").slice(0, 3000);
   if (!job) return res.status(400).json({ error: "job required" });
-  const d = llm.json(await llm.complete(SYSTEM, job, 700));
+  const es = (req.body || {}).lang === "es";
+  const d = llm.json(await llm.complete(SYSTEM + (es ? "\nWrite desc, industry and notes in Spanish (neutral Latin American business Spanish)." : ""), job, 700));
   if (!d || !Array.isArray(d.items)) return res.status(503).json({ error: "draft unavailable" });
   d.items = d.items
     .slice(0, 12)

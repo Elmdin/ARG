@@ -9,5 +9,7 @@ const ACTIVE = "quotecraft";
 (function () {
   let p = ACTIVE;
   try { p = new URLSearchParams(location.search).get("p") || ACTIVE; } catch (_) {}
+  // Spanish pages (/es/inicio or ?lang=es, see i18n.js) use the <preset>_es version when there is one.
+  if (window.QX && QX.lang === "es" && window.PRESETS[p + "_es"]) p += "_es";
   window.SITE = window.PRESETS[p] || window.PRESETS[ACTIVE];
 })();

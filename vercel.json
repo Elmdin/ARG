@@ -1,5 +1,10 @@
 {
-  "rewrites": [{ "source": "/favicon.ico", "destination": "/favicon.svg" }],
+  "rewrites": [
+    { "source": "/favicon.ico", "destination": "/favicon.svg" },
+    { "source": "/es", "destination": "/app.html" },
+    { "source": "/es/inicio", "destination": "/home.html" },
+    { "source": "/es/:path*", "destination": "/:path*" }
+  ],
   "headers": [
     { "source": "/(.*)", "headers": [{ "key": "Cache-Control", "value": "public, max-age=0, must-revalidate" }] }
   ]
