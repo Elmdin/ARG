@@ -640,6 +640,10 @@
       } catch (_) { say("That share link is incomplete. Ask the sender for a new one."); }
     }
 
+    // Deep link: /app.html?t=interiors opens that template (matches any part of the template name).
+    const tq = (new URLSearchParams(location.search).get("t") || "").toLowerCase().trim();
+    const tmatch = tq && Object.keys(TEMPLATES).find((n) => n.toLowerCase().includes(tq));
+    if (tmatch) industry = tmatch;
     if (!location.hash.startsWith("#q=")) load(industry); else render();
   })();
   </script>
