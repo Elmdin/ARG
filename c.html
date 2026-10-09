@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Confirm appointment</title><link rel="icon" href="/favicon.svg" type="image/svg+xml"><link rel="stylesheet" href="styles.css">
+<style>
+  [hidden] { display: none !important; }
+  section { padding: 24px 0; }
+  .btn { min-height: 52px; font-size: 1.1rem; width: 100%; }
+  input { min-height: 52px; font-size: 18px; }
+  .big { font-size: 1.4rem; font-weight: 800; margin: 4px 0; }
+  .card { margin: 14px 0; }
+  .card p { margin: 6px 0; }
+  .msg { border-radius: 12px; padding: 16px; margin: 14px 0; font-weight: 700; font-size: 1.1rem; }
+  .msg.ok { background: #12301f; border: 2px solid #1f8f5f; }
+  .msg.err { background: #3b1414; border: 2px solid #d94848; }
+</style></head>
+<body><main class="wrap" style="max-width:560px">
+<section>
+  <p class="eyebrow" id="studio">&nbsp;</p>
+  <h2 id="head">Loading… / Cargando…</h2>
+  <div id="details"></div>
+  <form id="f" class="form" hidden>
+    <label><span id="lbl"></span><input name="name" autocomplete="name" required></label>
+    <button class="btn" type="submit" id="accept"></button>
+  </form>
+  <div id="result" role="status" aria-live="polite"></div>
+</section></main>
+<script>
+const T = new URLSearchParams(location.search).get("t") || "";
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s == null ? "" : s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const STR = {
+  en: {
+    loc: "en-US",
+    headConfirm: (n) => `Confirm your appointment, ${n}`,
+    headOffer: (n) => `A spot opened up, ${n}`,
+    acceptBy: (d) => `Please accept by <b>${d}</b> to keep this time.`,
+    first: "First to accept gets it.",
+    deposit: (n) => `Deposit: $${n}.`,
+    label: "Tap the link and type your name to confirm. Your full name:",
+    accept: "Accept",
+    needName: "Please type your name to accept.",
+    accepted: (d) => `Confirmed. Accepted on ${d}. See you then!`,
+    won: (d) => `It's yours! Booked on ${d}. The office will see it right away.`,
+    taken: "Sorry, that time's been taken. We'll text you about the next one.",
+    lapsed: "The confirmation deadline has passed. Please call the office to keep your spot.",
+    cancelled: "This appointment was cancelled. Please contact the office.",
+    invalid: "This link isn't valid. Please contact the office.",
+    retry: "Couldn't save. Please try again.",
+  },
+  es: {
+    loc: "es-US",
+    headConfirm: (n) => `Confirme su cita, ${n}`,
+    headOffer: (n) => `Se abrió un horario, ${n}`,
+    acceptBy: (d) => `Por favor acepte antes del <b>${d}</b> para mantener este horario.`,
+    first: "La primera persona que acepte se queda con el horario.",
+    deposit: (n) => `Depósito: $${n}.`,
+    label: "Toque el enlace y escriba su nombre para confirmar. Su nombre completo:",
+    accept: "Aceptar",
+    needName: "Por favor escriba su nombre para aceptar.",
+    accepted: (d) => `Confirmada (${d}). ¡Le esperamos!`,
+    won: (d) => `¡Es suyo! Reservado (${d}). La oficina lo verá de inmediato.`,
+    taken: "Lo sentimos, ese horario ya fue tomado. Le enviaremos un mensaje con el próximo.",
+    lapsed: "Ya pasó la fecha límite para confirmar. Por favor llame a la oficina para mantener su cita.",
+    cancelled: "Esta cita fue cancelada. Por favor comuníquese con la oficina.",
+    invalid: "Este enlace no es válido. Por favor comuníquese con la oficina.",
+    retry: "No se pudo guardar. Por favor intente de nuevo.",
+  },
+};
+let v, L = STR.en;
+const when = (iso) => new Date(iso).toLocaleString(L.loc, { weekday: "long", month: "long", day: "numeric", hour: "numeric", minute: "2-digit" });
+const stamp = (iso) => new Date(iso).toLocaleString(L.loc, { dateStyle: "medium", timeStyle: "short" });
+function show(state, at) {
+  $("f").hidden = true;
+  const r = $("result");
+  if (state === "accepted") r.innerHTML = `<div class="msg ok" id="done">${esc(L.accepted(stamp(at)))}</div>`;
+  else if (state === "won") r.innerHTML = `<div class="msg ok" id="done">${esc(L.won(stamp(at)))}</div>`;
+  else if (state === "taken") r.innerHTML = `<div class="msg err" id="taken">${esc(L.taken)}</div>`;
+  else if (state === "lapsed") r.innerHTML = `<div class="msg err" id="lapsed">${esc(L.lapsed)}</div>`;
+  else if (state === "cancelled") r.innerHTML = `<div class="msg err" id="cancelled">${esc(L.cancelled)}</div>`;
+  else if (state === "invalid") r.innerHTML = `<div class="msg err">${esc(L.invalid)}</div>`;
+  else { $("f").hidden = false; r.innerHTML = ""; }
+}
+(async () => {
+  try {
+    const r = await fetch("/api/confirm?t=" + encodeURIComponent(T));
+    v = await r.json();
+    if (!r.ok) throw new Error(v.error || STR.en.invalid + " / " + STR.es.invalid);
+    L = STR[v.lang] || STR.en;
+    document.documentElement.lang = v.lang;
+    document.title = v.studio;
+    $("studio").textContent = v.studio;
+    const first = String(v.name || "").split(" ")[0];
+    $("head").textContent = v.kind === "offer" ? L.headOffer(first) : L.headConfirm(first);
+    $("lbl").textContent = L.label;
+    $("accept").textContent = L.accept;
+    $("details").innerHTML = `<div class="card">
+      <p class="big">${esc(v.treatment)}${v.price ? " · $" + Number(v.price).toLocaleString() : ""}</p>
+      <p class="big">${esc(when(v.at))}</p>
+      <p>${v.kind === "confirm" ? L.acceptBy(esc(when(v.cutoff))) : esc(L.first)}</p>
+      ${v.terms ? `<p class="terms">${esc(v.terms)}</p>` : ""}
+      ${v.deposit ? `<p><b>${esc(L.deposit(Number(v.deposit).toLocaleString()))}</b> ${esc(v.depositTerms || "")}</p>` : ""}
+    </div>`;
+    show(v.state, v.acceptedAt);
+  } catch (e) { $("head").textContent = "Link problem / Problema con el enlace"; $("result").innerHTML = `<div class="msg err">${esc(e.message)}</div>`; }
+})();
+$("f").addEventListener("submit", async (ev) => {
+  ev.preventDefault();
+  const name = ev.target.querySelector("[name=name]").value.trim();
+  if (!name) return ($("result").innerHTML = `<div class="msg err">${esc(L.needName)}</div>`);
+  $("accept").disabled = true;
+  try {
+    const r = await fetch("/api/confirm", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ action: "accept", t: T, name }) });
+    const j = await r.json();
+    if (j.state) return show(j.state, j.acceptedAt);
+    throw new Error(L.retry);
+  } catch (e) { $("result").innerHTML = `<div class="msg err">${esc(e.message || L.retry)}</div>`; $("accept").disabled = false; }
+});
+</script></body></html>

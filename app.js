@@ -61,7 +61,7 @@
 
   // ---------- LOI ----------
   const planSel = $("#plan-select");
-  planSel.innerHTML = S.pricing.map((p) => `<option>${esc(p.plan)}</option>`).join("");
+  planSel.innerHTML = S.pricing.map((p) => `<option${p.highlight ? " selected" : ""}>${esc(p.plan)}</option>`).join("");
   const terms = () =>
     ($("#loi-terms").textContent = S.loiTerms.replace("{product}", S.name).replace("{plan}", planSel.value));
   planSel.addEventListener("change", terms);

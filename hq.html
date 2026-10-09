@@ -7,16 +7,19 @@
 .pane{display:none}.pane.on{display:block}
 .item{border-top:1px solid var(--line);padding:12px 0}.item h4{margin:0;display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap}
 .st{font-size:.72rem;font-weight:700;padding:2px 10px;border-radius:999px;text-transform:uppercase;background:#26263a;white-space:nowrap}
-.st.won,.st.live{background:#12392b;color:#3ddc97}.st.talking,.st.queued{background:#3d3113;color:#f5c451}.st.building{background:#13283d;color:#6db7ff}
-.st.in.review{background:#2d1f47;color:#c4a8ff}.st.lost,.st.skip,.st.question{background:#3d1717;color:#ff9a9a}
+.st.won,.st.live,.st.closed{background:#12392b;color:#3ddc97}.st.talking,.st.queued,.st.interested{background:#3d3113;color:#f5c451}.st.building,.st.pitched{background:#13283d;color:#6db7ff}
+.st.in.review,.st.terms.offered{background:#2d1f47;color:#c4a8ff}.st.lost,.st.skip,.st.question,.st.passed{background:#3d1717;color:#ff9a9a}
 .item p,.item pre{margin:6px 0 0;color:var(--muted);white-space:pre-wrap;font:inherit}
 .grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px}
 .counts{display:flex;gap:10px;flex-wrap:wrap}.counts span{background:#0f0f15;border:1px solid var(--line);border-radius:10px;padding:6px 10px;font-size:.85rem}
+.counts span.bad{border-color:#ff7a7a;color:#ff9a9a}
+.flag{display:inline-block;margin:6px 6px 0 0;font-size:.75rem;font-weight:700;padding:2px 8px;border-radius:6px;background:#3d1717;color:#ff9a9a}
 </style></head>
 <body><main class="wrap" style="padding:24px 16px 48px">
 <h2 style="margin-bottom:4px">Team Quotax HQ</h2>
-<p style="color:var(--muted);margin:0">Shared by everyone and every Claude session. Live product: <a href="/app.html">arg-foundergame.vercel.app/app.html</a> · <span id="upd"></span></p>
-<div class="tabs"><button data-p="customers" class="on">Customers</button><button data-p="queue">Build queue</button><button data-p="notes">Notes</button><button data-p="agents">For Claude</button></div>
+<p style="color:var(--muted);margin:0">Shared by everyone and every Claude session. Live product: <a href="/app.html">arg-foundergame.vercel.app/app.html</a> · <a href="/deals.html">Deals</a> · <span id="upd"></span></p>
+<div class="counts" id="nums" style="margin-top:12px"></div>
+<div class="tabs"><button data-p="customers" class="on">Customers</button><button data-p="investors">Investors</button><button data-p="queue">Build queue</button><button data-p="notes">Notes</button><button data-p="agents">For Claude</button></div>
 
 <section class="pane on" id="customers">
   <div class="counts" id="counts"></div>
@@ -27,10 +30,38 @@
       <label>Owner<input name="owner" placeholder="Joseph"></label>
     </div>
     <label>What they need<textarea name="needs" rows="2"></textarea></label>
-    <label>Notes<textarea name="notes" rows="2"></textarea></label>
+    <label>Notes (next step, or the reason if lost / skip)<textarea name="notes" rows="2"></textarea></label>
     <button class="btn" type="submit">Save customer</button>
   </form>
   <div id="clist"></div>
+</section>
+
+<section class="pane" id="investors">
+  <form class="card form" id="mf" style="max-width:none;margin-top:12px">
+    <h3 style="margin:0">Fundraising lines (write these down before the next pitch)</h3>
+    <div class="grid2">
+      <label>Minimum founder ownership %<input name="equity_floor" placeholder="e.g. 80"></label>
+      <label>Raising now<input name="raise_ask" placeholder="$250K"></label>
+      <label>Valuation / cap<input name="valuation" placeholder="$5M post"></label>
+    </div>
+    <label>Milestone (what this raise gets us)<input name="milestone" placeholder="10 paying contractors and $100K ARR by Q1"></label>
+    <button class="btn" type="submit">Save</button>
+  </form>
+  <form class="card form" id="if" style="max-width:none;margin-top:12px">
+    <div class="grid2">
+      <label>Investor<input name="name" required placeholder="Paige Hacker"></label>
+      <label>Firm<input name="firm" placeholder="Why Combinator"></label>
+      <label>Stage<select name="stage"><option>pitched</option><option>interested</option><option>terms offered</option><option>closed</option><option>passed</option></select></label>
+      <label>Owner<input name="owner" placeholder="Orri"></label>
+      <label>Amount<input name="amount" placeholder="$125K"></label>
+      <label>Cap / valuation<input name="cap" placeholder="$5M"></label>
+      <label>Equity % (blank = amount ÷ cap)<input name="equity" placeholder="2.5"></label>
+    </div>
+    <label>Conditions<input name="conditions" placeholder="Wants one customer to sign first"></label>
+    <label>Open question / objection we owe an answer to<input name="open" placeholder="Why now?"></label>
+    <button class="btn" type="submit">Save investor</button>
+  </form>
+  <div id="ilist"></div>
 </section>
 
 <section class="pane" id="queue">
@@ -57,10 +88,13 @@
 </div></section>
 <p id="m" style="color:var(--muted)"></p>
 </main>
+<script src="teamkey.js"></script>
 <script>
-const k = new URLSearchParams(location.search).get("k") || "";
+const k = window.teamKey;
 const api = "/api/hq?k=" + encodeURIComponent(k);
 const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"})[c]);
+const usd = (n) => "$" + Math.round(n || 0).toLocaleString("en-US");
+const pc = (n) => Number.isFinite(n) ? Math.round(n * 100) / 100 + "%" : "not set";
 document.querySelectorAll(".tabs button").forEach((b) => b.onclick = () => {
   document.querySelectorAll(".tabs button,.pane").forEach((x) => x.classList.remove("on"));
   b.classList.add("on"); document.getElementById(b.dataset.p).classList.add("on");
@@ -69,9 +103,14 @@ const base = location.origin;
 document.getElementById("agentprompt").textContent =
 `You are working for Team Quotax in The Founder Game. Our shared HQ is the single source of truth.
 1. Read the current state first: ${base}/api/hq?k=${k}&format=md
+   Quote only the "Numbers" section to investors and in the pitch; it is computed from /deals.html and the investor list.
 2. Save what you learn so everyone sees it (open these URLs; values must be URL-encoded):
    - Customer update: ${base}/api/hq?k=${k}&op=customer&name=COMPANY&status=talking&needs=WHAT_THEY_NEED&notes=NOTES&owner=WHO
      (status: not contacted | talking | building | in review | won | lost | skip)
+   - Signed deal (closed in the game or by chat): ${base}/api/hq?k=${k}&op=deal&company=COMPANY&kind=signed&arr=28000&collected=2200&by=BUYER
+   - Investor: ${base}/api/hq?k=${k}&op=investor&name=NAME&firm=FIRM&stage=pitched&amount=125K&cap=5M&owner=Orri&conditions=...&open=...
+     (stage: pitched | interested | terms offered | closed | passed)
+   - Fundraising lines: ${base}/api/hq?k=${k}&op=meta&equity_floor=80&milestone=...&raise_ask=...&valuation=...
    - Note (dossier summary, investor intel, decision): ${base}/api/hq?k=${k}&op=note&title=TITLE&author=YOUR_ROLE&body=TEXT
    - Feature request for the builder: ${base}/api/hq?k=${k}&op=ask&customer=COMPANY&text=EXACT_REQUEST
 3. Or use the forms at ${base}/hq.html?k=${k}
@@ -82,21 +121,31 @@ async function post(body) {
   document.getElementById("m").textContent = r.ok ? "Saved." : "Save failed: " + (await r.text());
   load();
 }
-document.getElementById("cf").onsubmit = (e) => { e.preventDefault(); post({ type: "customer", ...Object.fromEntries(new FormData(e.target)) }); e.target.reset(); };
-document.getElementById("af").onsubmit = (e) => { e.preventDefault(); post({ type: "ask", ...Object.fromEntries(new FormData(e.target)) }); e.target.reset(); };
-document.getElementById("nf").onsubmit = (e) => { e.preventDefault(); post({ type: "note", ...Object.fromEntries(new FormData(e.target)) }); e.target.reset(); };
+for (const [id, type] of [["cf", "customer"], ["af", "ask"], ["nf", "note"], ["if", "investor"], ["mf", "meta"]])
+  document.getElementById(id).onsubmit = (e) => { e.preventDefault(); post({ type, ...Object.fromEntries(new FormData(e.target)) }); if (type !== "meta") e.target.reset(); };
+let metaFilled = false;
 async function load() {
   const r = await fetch(api);
-  if (r.status === 403) { document.getElementById("clist").textContent = "Missing team key: use the full HQ link."; return; }
-  const s = await r.json();
+  if (r.status === 403) { clearInterval(timer); return askTeamKey(document.getElementById("clist")); }
+  const s = await r.json(), n = s.numbers;
   document.getElementById("upd").textContent = "updated " + new Date().toLocaleTimeString();
+  const floorBad = !Number.isFinite(n.floor) || n.founders < n.floor;
+  document.getElementById("nums").innerHTML = [
+    [`Signed <b>${n.signed}</b> · LOIs <b>${n.lois}</b> · Pre-orders <b>${n.preorders}</b>`, !(n.signed + n.lois)],
+    [`Collected <b>${usd(n.preDollars)}</b> · ARR <b>${usd(n.arr)}</b>`, !n.preDollars],
+    [`Raised <b>${usd(n.raised)}</b> · Founders keep <b>${pc(n.founders)}</b> (floor ${pc(n.floor)})`, floorBad],
+    [`Milestone: <b>${esc(s.meta.milestone || "not set")}</b>`, !s.meta.milestone],
+  ].map(([t, bad]) => `<span class="${bad ? "bad" : ""}">${t}</span>`).join("");
+  if (!metaFilled) { metaFilled = true; for (const f of ["equity_floor", "milestone", "raise_ask", "valuation"]) document.querySelector(`#mf [name=${f}]`).value = s.meta[f] || ""; }
   const order = ["talking","building","in review","won","not contacted","lost","skip"];
-  const cs = s.customers.slice().sort((a,b) => order.indexOf(a.status) - order.indexOf(b.status));
-  const cnt = {}; s.customers.forEach((c) => cnt[c.status] = (cnt[c.status] || 0) + 1);
-  document.getElementById("counts").innerHTML = Object.entries(cnt).map(([k,v]) => `<span>${esc(k)}: <b>${v}</b></span>`).join("") || "<span>No customers yet</span>";
-  document.getElementById("clist").innerHTML = cs.map((c) => `<div class="item"><h4><span>${esc(c.name)}${c.owner ? ` <span style="color:var(--muted);font-weight:400">· ${esc(c.owner)}</span>` : ""}</span><span class="st ${esc(c.status)}">${esc(c.status)}</span></h4>${c.needs ? `<p><b>Needs:</b> ${esc(c.needs)}</p>` : ""}${c.notes ? `<p>${esc(c.notes)}</p>` : ""}</div>`).join("");
+  const cs = s.view.slice().sort((a,b) => (b.flags.length > 0) - (a.flags.length > 0) || order.indexOf(a.status) - order.indexOf(b.status));
+  const cnt = {}; cs.forEach((c) => cnt[c.status] = (cnt[c.status] || 0) + 1);
+  const flagged = cs.filter((c) => c.flags.length).length;
+  document.getElementById("counts").innerHTML = Object.entries(cnt).map(([k,v]) => `<span>${esc(k)}: <b>${v}</b></span>`).join("") + (flagged ? `<span class="bad">needs attention: <b>${flagged}</b></span>` : "") || "<span>No customers yet</span>";
+  document.getElementById("clist").innerHTML = cs.map((c) => `<div class="item"><h4><span>${esc(c.name)} <span style="color:var(--muted);font-weight:400">· ${c.owner ? esc(c.owner) : "no owner"}${c.age != null ? ` · ${c.age} min ago` : ""}</span></span><span class="st ${esc(c.status)}">${esc(c.status)}</span></h4>${c.flags.map((f) => `<span class="flag">${esc(f)}</span>`).join("")}${c.needs ? `<p><b>Needs:</b> ${esc(c.needs)}</p>` : ""}${c.notes ? `<p>${esc(c.notes)}</p>` : ""}</div>`).join("");
+  document.getElementById("ilist").innerHTML = s.investors.map((i) => `<div class="item"><h4><span>${esc(i.name)}${i.firm ? ` <span style="color:var(--muted);font-weight:400">· ${esc(i.firm)}</span>` : ""} <span style="color:var(--muted);font-weight:400">· ${i.owner ? esc(i.owner) : "no owner"}</span></span><span class="st ${esc(i.stage)}">${esc(i.stage)}</span></h4><p>Amount ${esc(i.amount || "unknown")} · cap ${esc(i.cap || "unknown")} · equity ${esc(i.equity || "unknown")}</p>${i.conditions ? `<p><b>Conditions:</b> ${esc(i.conditions)}</p>` : ""}${i.open ? `<p><b>Owe an answer:</b> ${esc(i.open)}</p>` : ""}</div>`).join("") || "<p>No investors tracked yet. Add every one you have pitched, including closed ones.</p>";
   document.getElementById("alist").innerHTML = s.asks.slice().reverse().map((a) => `<div class="item"><h4><span>#${a.id} ${esc(a.customer || "Customer")}</span><span class="st ${esc(a.status)}">${a.status === "live" ? "✅ live, send for review" : esc(a.status)}</span></h4>${a.note ? `<p><b>Builder:</b> ${esc(a.note)}</p>` : ""}<pre>${esc(a.text)}</pre></div>`).join("") || "<p>Queue empty.</p>";
   document.getElementById("nlist").innerHTML = s.notes.slice().reverse().map((n) => `<div class="item"><h4><span>${esc(n.title)}</span><span style="color:var(--muted);font-weight:400;font-size:.8rem">${esc(n.author)} · ${new Date(n.at).toLocaleTimeString()}</span></h4><pre>${esc(n.body)}</pre></div>`).join("") || "<p>No notes yet.</p>";
 }
-load(); setInterval(load, 5000);
+const timer = setInterval(load, 5000); load();
 </script></body></html>

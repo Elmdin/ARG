@@ -47,5 +47,24 @@ module.exports = {
   },
   set: async (key, i, obj) =>
     backend === "redis" ? (await tcp()).lSet(key, i, JSON.stringify(obj)) : rest(["LSET", key, String(i), JSON.stringify(obj)]),
+  // Key/value helpers (used by Confirm & Backfill). Values are JSON.
+  get: async (key) => {
+    const v = backend === "redis" ? await (await tcp()).get(key) : await rest(["GET", key]);
+    return v == null ? null : JSON.parse(v);
+  },
+  mget: async (keys) => {
+    if (!keys.length) return [];
+    const rows = backend === "redis" ? await (await tcp()).mGet(keys) : (await rest(["MGET", ...keys])) || [];
+    return rows.map((v) => (v == null ? null : JSON.parse(v)));
+  },
+  put: async (key, obj) =>
+    backend === "redis" ? (await tcp()).set(key, JSON.stringify(obj)) : rest(["SET", key, JSON.stringify(obj)]),
+  // Atomic "first writer wins": true only for the caller that created the key.
+  setnx: async (key, obj) => {
+    const r = backend === "redis"
+      ? await (await tcp()).set(key, JSON.stringify(obj), { NX: true })
+      : await rest(["SET", key, JSON.stringify(obj), "NX"]);
+    return r === "OK";
+  },
   ping: async () => (backend === "redis" ? (await tcp()).ping() : rest(["PING"])),
 };

@@ -1,0 +1,294 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Confirm & Backfill</title><link rel="icon" href="/favicon.svg" type="image/svg+xml"><link rel="stylesheet" href="styles.css">
+<style>
+  [hidden] { display: none !important; }
+  section { padding: 20px 0; }
+  .cb .btn { min-height: 48px; font-size: 1.05rem; }
+  .cb input, .cb select, .cb textarea { min-height: 48px; font-size: 16px; }
+  .row { display: flex; gap: 10px; flex-wrap: wrap; align-items: end; }
+  .row > * { flex: 1 1 140px; }
+  .badge { display: inline-block; font-weight: 800; font-size: .8rem; letter-spacing: .06em; padding: 4px 10px; border-radius: 999px; color: #fff; }
+  .b-PENDING { background: #4a4a5c; }
+  .b-CONFIRMED { background: #1f8f5f; }
+  .b-LAPSED { background: #d94848; }
+  .b-CANCELLED { background: #6b6b78; }
+  .b-FILLED { background: #2f6fd6; }
+  .appt { margin: 12px 0; }
+  .appt h3 { display: flex; justify-content: space-between; gap: 8px; align-items: center; }
+  .appt .meta { color: var(--muted); margin: 4px 0 10px; }
+  .btns { display: flex; gap: 8px; flex-wrap: wrap; }
+  .btns .btn { flex: 1 1 140px; text-align: center; }
+  .alert { background: #3b1414; border: 2px solid #d94848; border-radius: 14px; padding: 16px; margin: 12px 0; }
+  .alert b { display: block; margin-bottom: 8px; }
+  .msg { border-radius: 10px; padding: 12px 14px; margin: 10px 0; font-weight: 600; }
+  .msg.ok { background: #12301f; border: 1px solid #1f8f5f; }
+  .msg.err { background: #3b1414; border: 1px solid #d94848; }
+  .offers { margin-top: 10px; border-top: 1px solid var(--line); padding-top: 10px; }
+  .offers li { margin: 10px 0; }
+  .wl li { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 10px 0; border-bottom: 1px solid var(--line); }
+  ul { list-style: none; padding: 0; margin: 0; }
+  details summary { cursor: pointer; font-weight: 700; padding: 12px 0; min-height: 48px; }
+  .muted { color: var(--muted); }
+  .tag { font-size: .75rem; font-weight: 800; border: 1px solid var(--line); border-radius: 6px; padding: 1px 6px; margin-left: 4px; }
+  @media (max-width: 600px) { h2 { font-size: 1.4rem; } }
+</style></head>
+<body class="cb">
+<header class="nav"><div class="wrap nav-in"><a class="brand" href="#" id="studioName">Confirm & Backfill</a>
+  <nav><a href="#new">New</a><a href="#waitlist">Waitlist</a></nav></div></header>
+<main class="wrap">
+  <section>
+    <p class="eyebrow">Confirm & Backfill</p>
+    <div id="alert" role="alert" aria-live="polite"></div>
+    <div id="status" role="status" aria-live="polite"></div>
+    <h2>Appointments</h2>
+    <div id="list"><p class="muted">Loading…</p></div>
+  </section>
+
+  <section id="new">
+    <h2>New appointment</h2>
+    <form id="f" class="form" autocomplete="off">
+      <label>Name<input name="client" required></label>
+      <label>Phone<input name="phone" type="tel" inputmode="tel" placeholder="(555) 123-4567" required></label>
+      <label>Language for texts<select name="lang" id="lang"><option value="en">English</option><option value="es">Español (Spanish)</option></select></label>
+      <label>Appointment type<select name="treatment" id="treatment"></select></label>
+      <label id="otherWrap" hidden>Type name<input name="treatmentOther"></label>
+      <label>Date and time<input name="at" type="datetime-local" required></label>
+      <label>Price / estimate ($, optional)<input name="price" type="number" inputmode="decimal" min="0" step="1"></label>
+      <label>Must confirm by (hours before)<input name="cutoffHours" id="cutoffHours" type="number" min="0" max="720" value="48"></label>
+      <label>Terms: cancellation (optional, shown to the patient)<textarea name="terms" rows="3"></textarea></label>
+      <label>Deposit ($, optional; not charged here)<input name="deposit" type="number" min="0" step="1"></label>
+      <label>Deposit terms (optional)<textarea name="depositTerms" rows="2"></textarea></label>
+      <button class="btn" type="submit" id="create">Save &amp; get text</button>
+      <div id="fmsg" role="status" aria-live="polite"></div>
+    </form>
+  </section>
+
+  <section id="waitlist">
+    <h2>Waitlist</h2>
+    <ul class="wl" id="wl"></ul>
+    <form id="wf" class="form" autocomplete="off" style="margin-top:14px">
+      <div class="row">
+        <label>Name<input name="name" required></label>
+        <label>Phone<input name="phone" type="tel" inputmode="tel" required></label>
+      </div>
+      <div class="row">
+        <label>Language<select name="lang"><option value="en">English</option><option value="es">Español</option></select></label>
+        <label>Appointment type<select name="treatment" id="wtreatment"></select></label>
+      </div>
+      <label>Earliest available (optional)<input name="earliest" type="datetime-local"></label>
+      <button class="btn btn-ghost" type="submit" id="wladd">Add to waitlist</button>
+      <div id="wmsg" role="status" aria-live="polite"></div>
+    </form>
+  </section>
+
+  <section>
+    <details><summary>Location settings</summary>
+      <form id="sf" class="form">
+        <label>Location name<input name="name"></label>
+        <label>Desk phone (for "Text the desk")<input name="deskPhone" type="tel" inputmode="tel"></label>
+        <div class="row">
+          <label>Default cutoff (hours before)<input name="cutoffHours" type="number" min="0" max="720"></label>
+          <label>Backfill: text top N waitlist<input name="backfillN" type="number" min="1" max="10"></label>
+        </div>
+        <label>Appointment types, one per line as "Name, price" (price optional)<textarea name="treatments" rows="4"></textarea></label>
+        <label>Default cancellation terms (English)<textarea name="terms" rows="3"></textarea></label>
+        <label>Default cancellation terms (Spanish)<textarea name="termsEs" rows="3"></textarea></label>
+        <label>Default deposit ($)<input name="deposit" type="number" min="0"></label>
+        <label>Default deposit terms (English)<textarea name="depositTerms" rows="2"></textarea></label>
+        <label>Default deposit terms (Spanish)<textarea name="depositTermsEs" rows="2"></textarea></label>
+        <button class="btn btn-ghost" type="submit">Save settings</button>
+        <div id="smsg" role="status" aria-live="polite"></div>
+      </form>
+    </details>
+    <p class="muted">Desk link for this location: <span id="self"></span></p>
+  </section>
+</main>
+<script>
+const S = (new URLSearchParams(location.search).get("s") || "").toLowerCase();
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s == null ? "" : s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const money = (n) => (Number(n) ? "$" + Number(n).toLocaleString() : "");
+const when = (iso, lang) => new Date(iso).toLocaleString(lang === "es" ? "es-US" : "en-US", { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+let data = null;
+
+// Patient-facing texts: hardcoded English and Spanish.
+const TXT = {
+  en: {
+    confirm: (a, st, url) => `Hi ${first(a.client)}, this is ${st}. Your ${a.treatment}${a.price ? " (" + money(a.price) + ")" : ""} is ${when(a.at, "en")}. Please confirm by ${when(a.cutoff, "en")}. Tap the link and type your name to confirm. ${url}`,
+    remind: (a, st, url) => `Reminder from ${st}: please confirm your ${a.treatment} on ${when(a.at, "en")} by ${when(a.cutoff, "en")} or the time may go to someone else. Tap the link and type your name to confirm. ${url}`,
+    offer: (a, o, st, url) => `Hi ${first(o.name)}, this is ${st}. A ${a.treatment} time just opened: ${when(a.at, "en")}. First to accept gets it. Tap the link and type your name to confirm. ${url}`,
+  },
+  es: {
+    confirm: (a, st, url) => `Hola ${first(a.client)}, le escribe ${st}. Su cita de ${a.treatment}${a.price ? " (" + money(a.price) + ")" : ""} es el ${when(a.at, "es")}. Por favor confirme antes del ${when(a.cutoff, "es")}. Toque el enlace y escriba su nombre para confirmar. ${url}`,
+    remind: (a, st, url) => `Recordatorio de ${st}: por favor confirme su cita de ${a.treatment} del ${when(a.at, "es")} antes del ${when(a.cutoff, "es")} o el horario podría darse a otra persona. Toque el enlace y escriba su nombre para confirmar. ${url}`,
+    offer: (a, o, st, url) => `Hola ${first(o.name)}, le escribe ${st}. Se abrió un horario de ${a.treatment}: ${when(a.at, "es")}. La primera persona que acepte se queda con el horario. Toque el enlace y escriba su nombre para confirmar. ${url}`,
+  },
+};
+const first = (n) => String(n || "").trim().split(/\s+/)[0];
+const L = (lang) => TXT[lang === "es" ? "es" : "en"];
+const link = (t) => `${location.origin}/c.html?t=${t}`;
+const confirmText = (a) => L(a.lang).confirm(a, data.studio.name, link(a.token));
+const remindText = (a) => L(a.lang).remind(a, data.studio.name, link(a.token));
+const offerText = (a, o) => L(o.lang).offer(a, o, data.studio.name, link(o.t));
+
+function say(el, text, ok = true) { const e = $(el); if (e) e.innerHTML = text ? `<div class="msg ${ok ? "ok" : "err"}">${text}</div>` : ""; }
+function phoneE164(p) {
+  let d = String(p).replace(/[^\d+]/g, "");
+  if (!d.startsWith("+")) { d = d.replace(/\D/g, ""); if (d.length === 10) d = "1" + d; d = "+" + d; }
+  return d;
+}
+const smsHref = (phone, body) => `sms:${phoneE164(phone)}?&body=${encodeURIComponent(body)}`;
+async function api(body) {
+  const r = await fetch(body ? "/api/confirm" : "/api/confirm?s=" + encodeURIComponent(S), { method: body ? "POST" : "GET", headers: { "content-type": "application/json" }, body: body ? JSON.stringify({ s: S, ...body }) : undefined });
+  let j = {}; try { j = await r.json(); } catch (_) {}
+  if (!r.ok) throw new Error(j.error || "Request failed (" + r.status + ")");
+  return j;
+}
+async function copy(text, el) {
+  try { await navigator.clipboard.writeText(text); say(el, "Message copied. Paste it into a text."); }
+  catch (_) { say(el, "Copy this message: " + esc(text)); }
+}
+
+function render() {
+  const { studio, appts, waitlist } = data;
+  document.title = studio.name + " · Confirm & Backfill";
+  $("studioName").textContent = studio.name;
+  const lapsed = appts.filter((a) => a.status === "LAPSED" && !(a.offers || []).length);
+  // One lapse alert for the whole page, plus one "Text the desk" link (only if a desk phone is set).
+  if (lapsed.length) {
+    const summary = `${studio.name}: ${lapsed.length} appointment${lapsed.length > 1 ? "s" : ""} LAPSED (not confirmed by cutoff): ` + lapsed.map((a) => `${a.client} ${when(a.at)} ${a.treatment}`).join("; ") + ". Open the desk page and tap Backfill.";
+    $("alert").innerHTML = `<div class="alert" id="lapseAlert"><b>${lapsed.length} appointment${lapsed.length > 1 ? "s" : ""} LAPSED: not confirmed by the cutoff.</b>${lapsed.map((a) => esc(a.client) + " · " + esc(when(a.at))).join("<br>")}<p style="margin:8px 0 0">Tap Backfill on the card to text the waitlist.</p>${studio.deskPhone ? `<div class="btns" style="margin-top:10px"><a class="btn btn-ghost" id="textDesk" href="${esc(smsHref(studio.deskPhone, summary))}">Text the desk</a></div>` : `<p class="muted" style="margin:8px 0 0">Add a desk phone in Location settings to get a "Text the desk" button.</p>`}</div>`;
+  } else $("alert").innerHTML = "";
+
+  $("list").innerHTML = appts.length ? appts.map((a) => {
+    const btns = [];
+    if (a.status === "PENDING") {
+      if (a.reminderDue) btns.push(`<a class="btn" data-remind="${a.id}" href="${esc(smsHref(a.phone, remindText(a)))}">Send reminder</a>`);
+      else btns.push(`<a class="btn${a.reminderSentAt ? " btn-ghost" : ""}" href="${esc(smsHref(a.phone, confirmText(a)))}">Send text</a>`);
+      btns.push(`<button class="btn btn-ghost" data-copy="${a.id}">Copy message</button>`);
+    }
+    if (a.status === "LAPSED" || a.status === "CANCELLED") btns.push(`<button class="btn" data-backfill="${a.id}">Backfill</button>`);
+    if (a.status !== "CANCELLED") btns.push(`<button class="btn btn-ghost" data-cancel="${a.id}">Mark cancelled</button>`);
+    let detail = "";
+    if (a.status === "CONFIRMED") detail = `Confirmed by "${esc(a.acceptedName)}" at ${esc(when(a.acceptedAt))}`;
+    if (a.status === "PENDING") detail = `Waiting. Must confirm by ${esc(when(a.cutoff))}` + (a.reminderSentAt ? `. Reminder sent ${esc(when(a.reminderSentAt))}` : "");
+    if (a.status === "LAPSED") detail = `Not confirmed by the ${esc(when(a.cutoff))} cutoff`;
+    if (a.status === "CANCELLED") detail = `Cancelled ${esc(when(a.cancelledAt))}`;
+    if (a.status === "FILLED") detail = `Filled by ${esc(a.filledBy.name)} (${esc(a.filledBy.phone)}) at ${esc(when(a.filledBy.at))}`;
+    const open = (a.offers || []).length && (a.status === "LAPSED" || a.status === "CANCELLED");
+    const offers = open ? `<div class="offers"><b>Text these waitlist patients (first to accept wins):</b><ul>${a.offers.map((o) =>
+      `<li><div>${esc(o.name)} · ${esc(o.phone)} <span class="tag">${o.lang === "es" ? "ES" : "EN"}</span></div><div class="btns"><a class="btn" href="${esc(smsHref(o.phone, offerText(a, o)))}">Send text</a><button class="btn btn-ghost" data-ocopy="${a.id}|${o.t}">Copy message</button></div></li>`).join("")}</ul></div>` : "";
+    return `<article class="card appt" data-appt="${a.id}" data-status="${a.status}">
+      <h3><span>${esc(a.client)} <span class="tag">${a.lang === "es" ? "ES" : "EN"}</span></span><span class="badge b-${a.status}">${a.status}</span></h3>
+      <div class="meta">${esc(a.treatment)} ${money(a.price)} · ${esc(when(a.at))} · ${esc(a.phone)}<br>${detail}</div>
+      <div class="btns">${btns.join("")}</div>${offers}<div id="m-${a.id}" role="status" aria-live="polite"></div></article>`;
+  }).join("") : `<p class="muted">No appointments yet. Add one below.</p>`;
+
+  $("wl").innerHTML = waitlist.length ? waitlist.map((w) =>
+    `<li><span><b>${esc(w.name)}</b> <span class="tag">${w.lang === "es" ? "ES" : "EN"}</span> · ${esc(w.phone)}<br><span class="muted">${esc(w.treatment)}${w.earliest ? " · from " + esc(when(w.earliest)) : ""}</span></span><button class="btn btn-ghost btn-sm" data-wlrm="${w.id}">Remove</button></li>`).join("")
+    : `<li class="muted">Nobody waiting yet.</li>`;
+
+  const opts = studio.treatments.map((t) => `<option value="${esc(t.name)}" data-price="${t.price || ""}">${esc(t.name)}${t.price ? " · $" + t.price : ""}</option>`).join("");
+  const keepT = $("treatment").value, keepW = $("wtreatment").value;
+  $("treatment").innerHTML = opts + `<option value="__other">Other…</option>`;
+  $("wtreatment").innerHTML = `<option value="Any">Any type</option>` + opts;
+  if (keepT) $("treatment").value = keepT; if (keepW) $("wtreatment").value = keepW;
+}
+
+let autoTerms = true;
+function applyTermDefaults() {
+  const f = $("f"), st = data.studio, es = f.lang.value === "es";
+  if (!autoTerms) return;
+  f.terms.value = (es ? st.termsEs : st.terms) || st.terms || "";
+  f.depositTerms.value = (es ? st.depositTermsEs : st.depositTerms) || st.depositTerms || "";
+}
+function fillDefaults() {
+  const f = $("f"), st = data.studio;
+  if (!f.deposit.value && st.deposit) f.deposit.value = st.deposit;
+  f.cutoffHours.value = st.cutoffHours ?? 48;
+  applyTermDefaults();
+  syncPrice();
+  const sf = $("sf");
+  for (const k of ["deskPhone", "cutoffHours", "backfillN", "terms", "termsEs", "depositTerms", "depositTermsEs"]) sf[k].value = st[k] ?? "";
+  sf.querySelector("[name=name]").value = st.name;
+  sf.deposit.value = st.deposit || "";
+  sf.treatments.value = st.treatments.map((t) => (t.price ? `${t.name}, ${t.price}` : t.name)).join("\n");
+}
+function syncPrice() {
+  const sel = $("treatment"), o = sel.selectedOptions[0];
+  $("otherWrap").hidden = sel.value !== "__other";
+  $("f").price.value = o && o.dataset.price ? o.dataset.price : "";
+}
+
+async function load() {
+  try { data = await api(); render(); }
+  catch (e) { say("status", esc(e.message), false); $("list").innerHTML = ""; }
+}
+
+document.addEventListener("click", async (ev) => {
+  const t = ev.target.closest("[data-copy],[data-cancel],[data-backfill],[data-wlrm],[data-ocopy],[data-remind]");
+  if (!t) return;
+  const d = t.dataset;
+  if (d.remind) { // let the sms: link open, and record the one reminder
+    api({ action: "reminded", id: d.remind }).then(load).then(() => say("m-" + d.remind, "Reminder marked as sent. Only one reminder per appointment.")).catch((e) => say("m-" + d.remind, esc(e.message), false));
+    return;
+  }
+  ev.preventDefault();
+  try {
+    if (d.copy) { const a = data.appts.find((x) => x.id === d.copy); return copy(a.reminderDue ? remindText(a) : confirmText(a), "m-" + a.id); }
+    if (d.ocopy) { const [aid, tok] = d.ocopy.split("|"); const a = data.appts.find((x) => x.id === aid); return copy(offerText(a, a.offers.find((o) => o.t === tok)), "m-" + aid); }
+    t.disabled = true;
+    if (d.cancel) { await api({ action: "cancel", id: d.cancel }); await load(); say("m-" + d.cancel, "Marked CANCELLED. Tap Backfill to offer the time to the waitlist."); }
+    if (d.backfill) {
+      const r = await api({ action: "backfill", id: d.backfill });
+      await load();
+      say("m-" + d.backfill, r.offers.length ? `Backfill ready: ${r.offers.length} waitlist patient${r.offers.length > 1 ? "s" : ""} matched. Tap Send text for each (each in their language). First to accept gets the time.` : esc(r.message), !!r.offers.length);
+    }
+    if (d.wlrm) { await api({ action: "wl_remove", id: d.wlrm }); await load(); say("wmsg", "Removed from waitlist."); }
+  } catch (e) { say(d.cancel || d.backfill ? "m-" + (d.cancel || d.backfill) : "status", esc(e.message), false); t.disabled = false; }
+});
+
+$("treatment").addEventListener("change", syncPrice);
+$("lang").addEventListener("change", applyTermDefaults);
+$("f").terms.addEventListener("input", () => (autoTerms = false));
+$("f").addEventListener("submit", async (ev) => {
+  ev.preventDefault();
+  const f = ev.target, fd = Object.fromEntries(new FormData(f));
+  const treatment = fd.treatment === "__other" ? fd.treatmentOther : fd.treatment;
+  if (!fd.at) return say("fmsg", "Pick a date and time.", false);
+  $("create").disabled = true;
+  try {
+    const r = await api({ action: "create", client: fd.client, phone: fd.phone, lang: fd.lang, treatment, price: fd.price, at: new Date(fd.at).toISOString(), cutoffHours: fd.cutoffHours, terms: fd.terms, deposit: fd.deposit, depositTerms: fd.depositTerms });
+    await load();
+    const a = r.appt;
+    f.client.value = ""; f.phone.value = ""; f.at.value = ""; autoTerms = true; applyTermDefaults();
+    say("fmsg", `Saved for ${esc(a.client)} (${a.status}, texts in ${a.lang === "es" ? "Spanish" : "English"}). Now send the text:<div class="btns" style="margin-top:10px"><a class="btn" id="sendNew" href="${esc(smsHref(a.phone, confirmText(a)))}">Send text</a><button class="btn btn-ghost" type="button" data-copy="${a.id}">Copy message</button></div><div class="muted" style="margin-top:8px;word-break:break-all">Patient link: <a id="newLink" href="${esc(link(a.token))}">${esc(link(a.token))}</a></div>`);
+  } catch (e) { say("fmsg", esc(e.message), false); }
+  $("create").disabled = false;
+});
+$("wf").addEventListener("submit", async (ev) => {
+  ev.preventDefault();
+  const fd = Object.fromEntries(new FormData(ev.target));
+  if (fd.earliest) fd.earliest = new Date(fd.earliest).toISOString();
+  try { await api({ action: "wl_add", ...fd }); ev.target.reset(); await load(); say("wmsg", `Added ${esc(fd.name)} to the waitlist.`); }
+  catch (e) { say("wmsg", esc(e.message), false); }
+});
+$("sf").addEventListener("submit", async (ev) => {
+  ev.preventDefault();
+  const fd = Object.fromEntries(new FormData(ev.target));
+  const treatments = fd.treatments.split("\n").map((l) => { const m = l.split(","); return { name: m[0].trim(), price: Number((m[1] || "").replace(/[^\d.]/g, "")) || 0 }; }).filter((x) => x.name);
+  try { await api({ action: "studio", ...fd, treatments }); await load(); autoTerms = true; fillDefaults(); say("smsg", "Settings saved."); }
+  catch (e) { say("smsg", esc(e.message), false); }
+});
+
+if (!S) {
+  $("list").innerHTML = "";
+  say("status", 'Add your location id to the address to start, e.g. <a href="?s=seawall">confirm.html?s=seawall</a> or <a href="?s=mesaclara">confirm.html?s=mesaclara</a>', false);
+} else {
+  $("self").textContent = location.origin + location.pathname + "?s=" + S;
+  load().then(() => data && fillDefaults());
+  // Refresh every 30s so confirmations, lapses and reminders show up on their own.
+  setInterval(() => { if (document.visibilityState === "visible") load(); }, 30000);
+}
+</script></body></html>

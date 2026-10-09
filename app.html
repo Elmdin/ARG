@@ -62,7 +62,7 @@
   <header class="nav">
     <div class="wrap nav-in">
       <a class="brand" href="/app.html">Quotax</a>
-      <nav><a href="/home.html">About</a><a href="/home.html#pricing">Pricing</a><a href="/home.html#loi" class="btn btn-sm">Sign LOI</a></nav>
+      <nav><a href="/home.html">About</a><a href="/home.html#loi" class="btn btn-sm">Sign LOI</a></nav>
     </div>
   </header>
 
@@ -206,6 +206,7 @@
           ["Doors, frames & hardware (ea)", 14, 1450, { section: "Doors & hardware", cost: 1180 }],
           ["Supervision (weeks)", 6, 2400, { section: "General conditions", cost: 2100 }]],
         checklist: [["Dumpsters / debris haul", 2, 650, "dumpster|debris|haul|disposal"], ["Permits & inspections", 1, 900, "permit|inspection"], ["After-hours work premium", 1, 1500, "after-hours|after hours|night"], ["Contingency (5%)", 1, 2500, "contingency"], ["Final clean", 1, 800, "clean"]] },
+      "Education / school fees (KES)": { seller: "Elimu Plus Learning Centres", client: "", tax: 0, currency: "KES", method: "M-Pesa Paybill", payDetails: "Paybill 400200, Account: student name", terms: "Termly", term: 12, stages: [[50, "Start of term"], [50, "Mid-term"]], items: [["Tuition, per term", 1, 38000], ["Lunch programme, per term", 1, 9500], ["Transport, per term", 1, 7500], ["Activity & materials fee, per term", 1, 3500]] },
       "Creative studio / proposal": { seller: "Signal & Thread Studio", client: "", tax: 0, method: "Bank transfer", terms: "Net 15", brand: { color: "#7c3aed", font: "Modern", intro: "Brand refresh and launch website. Fixed scope, three review rounds, delivered in 8 weeks." }, stages: [[50, "On signature"], [50, "On launch"]], items: [["Discovery & brand strategy workshop", 1, 4500], ["Visual identity system (logo, type, color)", 1, 9500], ["Website design, up to 8 pages", 1, 14000], ["Launch content & photo art direction", 1, 6000], ["Project management", 1, 3000], ["Monthly brand & site retainer", 1, 2500, { bill: "monthly" }]], mix: true },
       "Telecom / enterprise (SG)": { seller: "Kallang Pacific Telecom", client: "", tax: 9, currency: "SGD", method: "Bank transfer", terms: "Monthly, net 60", term: 36, mix: true, signatory: true,
         catalog: [["Dedicated fibre access", "monthly"], ["Managed network", "monthly"], ["Cloud connect", "monthly"], ["Data centre cross-connect", "monthly"], ["Installation", "once"], ["Activation", "once"]],
@@ -374,6 +375,7 @@
       taxNameEdited = false; defaultTaxName();
       if (t.method) $("#pmethod").value = t.method;
       if (t.terms) $("#terms").value = t.terms;
+      $("#pdetails").value = t.payDetails || "";
       $("#term").value = t.term || 0;
       const b = t.brand || {};
       logo = ""; $("#logo").value = "";
@@ -642,6 +644,10 @@
       } catch (_) { say("That share link is incomplete. Ask the sender for a new one."); }
     }
 
+    // Deep link: /app.html?t=interiors opens that template (matches any part of the template name).
+    const tq = (new URLSearchParams(location.search).get("t") || "").toLowerCase().trim();
+    const tmatch = tq && Object.keys(TEMPLATES).find((n) => n.toLowerCase().includes(tq));
+    if (tmatch) industry = tmatch;
     if (!location.hash.startsWith("#q=")) load(industry); else render();
   })();
   </script>
