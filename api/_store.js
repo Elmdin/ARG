@@ -38,5 +38,7 @@ module.exports = {
     const rows = backend === "redis" ? await (await tcp()).lRange(KEY, 0, -1) : (await rest(["LRANGE", KEY, "0", "-1"])) || [];
     return rows.map((s) => JSON.parse(s));
   },
+  // Raw command, e.g. cmd(["HSET", "asks", id, json]). Used by api/asks.js.
+  cmd: async (args) => (backend === "redis" ? (await tcp()).sendCommand(args.map(String)) : rest(args.map(String))),
   ping: async () => (backend === "redis" ? (await tcp()).ping() : rest(["PING"])),
 };
