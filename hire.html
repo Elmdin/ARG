@@ -37,6 +37,11 @@
   <div id="qMsg"></div>
 </section>
 
+<section class="card" style="padding:16px;margin-top:12px">
+  <h3 style="margin-top:0">After day one: 90-day retention</h3>
+  <p class="muted" style="margin:0 0 6px">Every hire gets a one-tap check-in text at day 7, 30, 60 and 90: all good, schedule isn't working, or thinking of leaving. Anyone who flags a problem or doesn't answer goes red here, so the GM calls them before they quit.</p>
+  <div id="ret"></div>
+</section>
 <div class="tabs" id="props" role="tablist" aria-label="Property"></div>
 <div id="summary"></div>
 <label style="display:flex;gap:8px;align-items:center;margin:6px 0"><input type="checkbox" id="auto" style="width:auto;min-height:0"> Auto-advance: when an offer lapses, offer it to the next confirmed candidate automatically</label>
@@ -113,10 +118,36 @@ function render() {
     return `<div class="cand"${stale(z) ? ' style="border-left:4px solid #d94848;padding-left:10px"' : ""}><h3><span>${esc(c.client)} <span class="muted" style="font-weight:400">· ${esc(c.role)} · ${esc(c.property)}</span></span><span>${stale(z) ? `<span class="badge" style="background:#7f1d1d">🔴 NO FOLLOW-UP ${Math.floor((Date.now() - lastTouch(z)) / 3600e3)}H</span> ` : ""}<span class="badge b-${badge.split(" ")[0]}" style="${badge.startsWith("DAY") ? "background:#0f766e" : ""}">${esc(badge)}</span></span></h3><div class="meta">${esc(c.phone)} · ${detail}</div><div class="btns">${b.join("")}</div>${form}<div id="m-${c.id}"></div></div>`;
   }).join("") || '<p class="muted">No candidates yet. Add one above.</p>';
 }
-async function load() { try { data = await api(); render(); } catch (e) { say("note", esc(e.message), false); } }
+const ciText = (o, day, t) => `Hi ${first(o.client)}, ${data.studio.name} here. Day ${day} check-in for your ${o.role} job at ${o.property}: one tap to tell us how it's going: ${location.origin}/ci.html?t=${t}`;
+function renderRetention() {
+  const props = data.studio.properties || [];
+  const hires = data.appts.filter((o) => o.kind === "offer" && o.dayOneAt && (prop === "All" || o.property === prop));
+  const daysIn = (o) => Math.floor((Date.now() - Date.parse(o.dayOneAt)) / 86400e3);
+  const due = (o) => [7, 30, 60, 90].filter((d) => daysIn(o) >= d && !(o.checkins || {})[d]);
+  const latest = (o) => { const k = Object.keys(o.checkins || {}).map(Number).sort((a, b) => b - a)[0]; return k ? { day: k, ...o.checkins[k] } : null; };
+  const risk = (o) => !o.leftAt && ((latest(o) && latest(o).answer !== "good") || due(o).some((d) => (o.ciSent || {})[d] && Date.now() - Date.parse(o.ciSent[d]) > 48 * 3600e3));
+  const perHotel = (prop === "All" ? props : [prop]).map((h) => {
+    const hs = data.appts.filter((o) => o.kind === "offer" && o.dayOneAt && o.property === h);
+    const past90 = hs.filter((o) => daysIn(o) >= 90), stayed = past90.filter((o) => !o.leftAt);
+    const active = hs.filter((o) => !o.leftAt).length;
+    return `<div class="sum"><b>${esc(h)}:</b> ${hs.length} hired · <b>${active}</b> still with us · ${hs.filter(risk).length ? `<b style="color:#ff9a9a">${hs.filter(risk).length} at risk</b>` : "0 at risk"}${past90.length ? ` · 90-day retention <b>${Math.round(stayed.length / past90.length * 100)}%</b>` : ""}</div>`;
+  }).join("");
+  const rowsH = hires.slice().sort((a, b) => Number(risk(b)) - Number(risk(a)) || daysIn(a) - daysIn(b)).map((o) => {
+    const l = latest(o), dd = due(o);
+    const label = { good: "👍 all good", schedule: "📅 schedule isn't working", leaving: "🚪 thinking of leaving" };
+    const btn = dd.length && !o.leftAt ? `<button class="btn${risk(o) ? "" : " btn-ghost"}" type="button" data-ci="${o.id}" data-day="${dd[0]}">Send day ${dd[0]} check-in</button>` : "";
+    return `<div class="cand"${risk(o) ? ' style="border-left:4px solid #d94848;padding-left:10px"' : ""}><h3><span>${esc(o.client)} <span class="muted" style="font-weight:400">· ${esc(o.role)} · ${esc(o.property)}</span></span><span>${o.leftAt ? '<span class="badge b-CANCELLED">LEFT</span>' : risk(o) ? '<span class="badge" style="background:#7f1d1d">🔴 AT RISK</span>' : '<span class="badge b-CONFIRMED">ON TRACK</span>'}</span></h3>
+      <div class="meta">Day ${daysIn(o)} on the job${l ? ` · day ${l.day} check-in: ${label[l.answer]}${l.note ? ` ("${esc(l.note)}")` : ""}` : " · no check-in yet"}</div>
+      <div class="btns">${btn}<button class="btn btn-ghost" type="button" data-left="${o.id}"${o.leftAt ? ' data-undo="1"' : ""}>${o.leftAt ? "Undo left" : "Mark as left"}</button></div><div id="ci-${o.id}"></div></div>`;
+  }).join("");
+  $("ret").innerHTML = perHotel + (rowsH || '<p class="muted">No one has started yet. Tap "Showed up day one" on a hire to start their check-ins.</p>');
+}
+async function load() { try { data = await api(); render(); renderRetention(); } catch (e) { say("note", esc(e.message), false); } }
 document.addEventListener("click", async (e) => {
   const d = e.target.dataset;
-  if (d.p) { prop = d.p; return render(); }
+  if (d.p) { prop = d.p; render(); return renderRetention(); }
+  if (d.ci) { try { const j = await api({ action: "checkin", id: d.ci, day: d.day }); const o = j.appt; await load(); $("ci-" + d.ci).innerHTML = `<div class="msg ok">Check-in ready. <a class="btn" href="${esc(smsHref(o.phone, ciText(o, d.day, j.token)))}">Text it now</a></div>`; } catch (err) { say("note", esc(err.message), false); } return; }
+  if (d.left) { await api({ action: "left", id: d.left, undo: d.undo ? 1 : 0 }).catch(() => {}); return load(); }
   if (d.offer) { const f = document.querySelector(`[data-form="${d.offer}"]`); f.hidden = !f.hidden; const s = f.querySelector("[name=start]"); if (!s.value) s.value = new Date(Date.now() + 10 * 86400e3).toISOString().slice(0, 10); return; }
   if (d.dayone) { await api({ action: "dayone", id: d.dayone, undo: d.undo ? 1 : 0 }).catch(() => {}); return load(); }
   if (d.touch) { await api({ action: "touch", id: d.touch }).catch(() => {}); return load(); }

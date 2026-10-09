@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Quick check-in</title><link rel="icon" href="/favicon.svg" type="image/svg+xml"><link rel="stylesheet" href="styles.css">
+<style>
+  [hidden] { display: none !important; }
+  .opt { display: block; width: 100%; min-height: 56px; font-size: 1.1rem; margin: 10px 0; text-align: left; }
+  textarea { min-height: 80px; font-size: 16px; }
+  .msg { border-radius: 10px; padding: 12px; margin: 10px 0; } .msg.ok { background: #12392b; color: #bff5dc; } .msg.err { background: #3d1717; color: #ffc4c4; }
+</style></head>
+<body><main class="wrap" style="padding:24px 16px 48px;max-width:520px">
+<p class="muted" id="studio" style="margin:0"></p>
+<h2 id="head">Quick check-in</h2>
+<p id="sub" class="muted"></p>
+<form id="f" hidden>
+  <button class="btn opt" type="button" data-a="good">👍 All good, see you on shift</button>
+  <button class="btn btn-ghost opt" type="button" data-a="schedule">📅 My schedule isn't working</button>
+  <button class="btn btn-ghost opt" type="button" data-a="leaving">🚪 I'm thinking of leaving</button>
+  <label>Anything your manager should know? (optional)<textarea id="note" maxlength="300"></textarea></label>
+</form>
+<div id="result" role="status"></div>
+</main>
+<script>
+const $ = (id) => document.getElementById(id);
+const T = new URLSearchParams(location.search).get("t") || "";
+const esc = (s) => String(s == null ? "" : s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const thanks = { good: "Thanks! Glad it's going well.", schedule: "Thanks for telling us. Your manager will reach out about your schedule.", leaving: "Thanks for being honest. Your manager will reach out today." };
+(async () => {
+  try {
+    const r = await fetch("/api/confirm?t=" + encodeURIComponent(T)); const v = await r.json();
+    if (!r.ok || v.kind !== "checkin") throw new Error(v.error || "This link isn't valid.");
+    $("studio").textContent = v.studio;
+    $("head").textContent = `Day ${v.day} check-in, ${String(v.name).split(" ")[0]}`;
+    $("sub").textContent = `${v.role} · ${v.property}. One tap, no login.`;
+    if (v.answered) $("result").innerHTML = `<div class="msg ok">${esc(thanks[v.answered.answer] || "Thanks!")}</div>`;
+    else $("f").hidden = false;
+  } catch (e) { $("result").innerHTML = `<div class="msg err">${esc(e.message)}</div>`; }
+})();
+$("f").addEventListener("click", async (e) => {
+  const a = e.target.dataset.a; if (!a) return;
+  try {
+    const r = await fetch("/api/confirm", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ action: "ci_answer", t: T, answer: a, note: $("note").value }) });
+    if (!r.ok) throw new Error("Couldn't save. Please try again.");
+    $("f").hidden = true; $("result").innerHTML = `<div class="msg ok">${esc(thanks[a])}</div>`;
+  } catch (err) { $("result").innerHTML = `<div class="msg err">${esc(err.message)}</div>`; }
+});
+</script></body></html>

@@ -203,6 +203,27 @@ async function seedHalcyon() {
   const o = hireEntry("halcyon", { client: "Marisol Vega", phone: "310 555 0141", property: P[0], role: "Front desk agent", start: new Date(now + 10 * 86400e3).toISOString().slice(0, 10), pay: "$24/hr", candidate: made[0].id }, "offer", { created: h(50) });
   await saveNew("halcyon", o);
 }
+async function seedHalcyonRetention() {
+  if (!(await store.setnx("cb:seeded:halcyon-ret", { at: Date.now() }))) return;
+  const now = Date.now(), d = (n) => new Date(now - n * 86400e3).toISOString();
+  const P = DEMO.halcyon.properties;
+  const hires = [
+    ["Leah Morgan", "310 555 0151", P[0], "Housekeeper", 75, { 7: "good", 30: "good", 60: "good" }],
+    ["Andre Wilson", "310 555 0152", P[0], "Banquet server", 40, { 7: "good", 30: "schedule" }],
+    ["Sofia Reyes", "949 555 0153", P[1], "Front desk agent", 95, { 7: "good", 30: "good", 60: "good", 90: "good" }],
+    ["Ben Carter", "949 555 0154", P[1], "Housekeeper", 33, { 7: "leaving" }],
+    ["Grace Kim", "949 555 0155", P[1], "Line cook", 12, { 7: "good" }],
+  ];
+  for (const [client, phone, property, role, daysIn, ci] of hires) {
+    const c = hireEntry("halcyon", { client, phone, property, role }, "intake", { created: d(daysIn + 14) });
+    c.acceptedAt = d(daysIn + 13); c.acceptedName = client;
+    await saveNew("halcyon", c);
+    const o = hireEntry("halcyon", { client, phone, property, role, start: d(daysIn).slice(0, 10), pay: "$21/hr", candidate: c.id }, "offer", { created: d(daysIn + 10) });
+    o.acceptedAt = d(daysIn + 9); o.acceptedName = client; o.dayOneAt = d(daysIn);
+    o.checkins = Object.fromEntries(Object.entries(ci).map(([day, answer]) => [day, { answer, note: answer === "schedule" ? "Keep getting split shifts I didn't sign up for" : answer === "leaving" ? "Resort down the road offered more hours" : "", at: d(daysIn - Number(day)) }]));
+    await saveNew("halcyon", o);
+  }
+}
 // Hiring: when an offer lapses, offer the same job to the next confirmed candidate (property + role), newest reply first.
 async function autoAdvance(s, appts) {
   const st = await studio(s);
@@ -250,6 +271,10 @@ module.exports = async (req, res) => {
         if (!tok) return res.status(404).json({ error: "This link isn't valid. Please contact the office. / Este enlace no es válido. Comuníquese con la oficina." });
         const a = await store.get(K.appt(tok.a));
         if (!a) return res.status(404).json({ error: "This appointment no longer exists. / Esta cita ya no existe." });
+        if (tok.k === "ci") {
+          const st0 = await studio(a.s), got = (a.checkins || {})[tok.day];
+          return res.json({ kind: "checkin", studio: st0.name, name: a.client, role: a.role, property: a.property, day: tok.day, answered: got || null });
+        }
         const st = await studio(a.s);
         const status = statusOf(a);
         let state; // what this visitor should see
@@ -287,7 +312,7 @@ module.exports = async (req, res) => {
       const s = sid(q.s);
       if (!s) return res.status(400).json({ error: "Add a location id to the address, e.g. ?s=seawall" });
       if (s === "elimu") await seedElimu();
-      if (s === "halcyon") await seedHalcyon();
+      if (s === "halcyon") { await seedHalcyon(); await seedHalcyonRetention(); }
       let [st, appts, wl] = await Promise.all([studio(s), loadAppts(s), waitlist(s)]);
       if (appts.some((a) => a.kind === "offer") && (await autoAdvance(s, appts))) appts = await loadAppts(s);
       return res.json({ studio: st, appts, waitlist: wl, now: new Date().toISOString() });
@@ -332,6 +357,17 @@ module.exports = async (req, res) => {
       const wl = await waitlist(a.s);
       await store.put(K.wl(a.s), wl.filter((w) => w.id !== tok.w));
       return res.json({ ok: true, state: "won", acceptedAt: now });
+    }
+
+    if (act === "ci_answer") {
+      const tok = await store.get(K.tok(clean(b.t, 40)));
+      if (!tok || tok.k !== "ci") return res.status(404).json({ error: "This link isn't valid." });
+      const a = await store.get(K.appt(tok.a));
+      if (!a) return res.status(404).json({ error: "Not found." });
+      const answer = ["good", "schedule", "leaving"].includes(b.answer) ? b.answer : "good";
+      a.checkins = { ...(a.checkins || {}), [tok.day]: { answer, note: clean(b.note, 300), at: new Date().toISOString() } };
+      await store.put(K.appt(a.id), a);
+      return res.json({ ok: true, answer });
     }
 
     const s = sid(b.s);
@@ -419,6 +455,25 @@ module.exports = async (req, res) => {
         out.push(withStatus(a));
       }
       return res.json({ ok: true, appts: out });
+    }
+
+    if (act === "checkin") {
+      const a = await store.get(K.appt(clean(b.id, 20)));
+      if (!a || a.s !== s) return res.status(404).json({ error: "Not found." });
+      const day = [7, 30, 60, 90].includes(Number(b.day)) ? Number(b.day) : 7;
+      a.ciTokens = a.ciTokens || {};
+      if (!a.ciTokens[day]) { a.ciTokens[day] = id(9); await store.put(K.tok(a.ciTokens[day]), { a: a.id, k: "ci", day }); }
+      a.ciSent = { ...(a.ciSent || {}), [day]: new Date().toISOString() };
+      await store.put(K.appt(a.id), a);
+      return res.json({ ok: true, token: a.ciTokens[day], appt: withStatus(a) });
+    }
+
+    if (act === "left") {
+      const a = await store.get(K.appt(clean(b.id, 20)));
+      if (!a || a.s !== s) return res.status(404).json({ error: "Not found." });
+      a.leftAt = b.undo ? null : new Date().toISOString();
+      await store.put(K.appt(a.id), a);
+      return res.json({ ok: true, appt: withStatus(a) });
     }
 
     if (act === "dayone" || act === "touch") {
