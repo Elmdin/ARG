@@ -116,6 +116,11 @@
     if (dlg.returnValue !== "pay") return;
     const d = Object.fromEntries(new FormData($("#checkout-form")));
     const entry = await record("preorder", { plan: current.plan, price: current.price, email: d.email, company: d.company });
-    alert(`Payment received. Order #${entry.id}: ${S.name} ${current.plan} (${current.price}). Receipt sent to ${d.email}.`);
+    const done = $("#order-done");
+    done.hidden = false;
+    done.innerHTML = `<h3>✓ Payment received</h3>
+      <p><b>Order #<span id="order-id">${esc(entry.id)}</span></b> · ${esc(S.name)} ${esc(current.plan)} (${esc(current.price)})</p>
+      <p>Receipt sent to ${esc(d.email)}.</p>`;
+    done.scrollIntoView({ behavior: "smooth", block: "center" });
   });
 })();
