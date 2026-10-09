@@ -63,12 +63,15 @@ async function api(body) {
   if (!r.ok) throw new Error(j.error || "Request failed");
   return j;
 }
+const lastTouch = (z) => Math.max(Date.parse(z.c.created), Date.parse(z.c.acceptedAt || 0) || 0, Date.parse(z.c.touchedAt || 0) || 0, z.o ? Date.parse(z.o.created) : 0);
+const stale = (z) => !(z.o && z.o.status === "CONFIRMED") && z.c.status !== "LAPSED" && !(z.o && z.o.status === "LAPSED") && Date.now() - lastTouch(z) > 24 * 3600e3;
 // Chase order: confirmed with no offer yet (newest reply first), then pending (oldest text first), then the rest.
 function rows() {
   const intakes = data.appts.filter((a) => a.kind === "intake" && (prop === "All" || a.property === prop));
   const offers = data.appts.filter((a) => a.kind === "offer");
   const offerFor = (c) => offers.filter((o) => o.candidate === c.id).sort((x, y) => Date.parse(y.created) - Date.parse(x.created))[0];
   return intakes.map((c) => ({ c, o: offerFor(c) })).sort((x, y) => {
+    const sx = stale(x), sy = stale(y); if (sx !== sy) return sx ? -1 : 1;
     const r = (z) => z.o ? (z.o.status === "PENDING" ? 1 : z.o.status === "CONFIRMED" ? 4 : 3) : z.c.status === "CONFIRMED" ? 0 : z.c.status === "PENDING" ? 2 : 5;
     const d = r(x) - r(y); if (d) return d;
     if (!x.o && x.c.status === "CONFIRMED") return Date.parse(y.c.acceptedAt) - Date.parse(x.c.acceptedAt);
@@ -85,7 +88,8 @@ function render() {
   $("auto").checked = !!st.autoAdvance;
   const rs = rows();
   const n = (f) => rs.filter(f).length;
-  $("summary").innerHTML = `<div class="sum"><b>${esc(prop === "All" ? "All properties" : prop)}:</b> ${n((z) => z.c.status === "CONFIRMED" && !z.o)} ready for an offer · ${n((z) => z.c.status === "PENDING")} waiting to confirm · ${n((z) => z.o && z.o.status === "PENDING")} offers out · <b style="color:#3ddc97">${n((z) => z.o && z.o.status === "CONFIRMED")} hired</b> · ${n((z) => z.c.status === "LAPSED")} cooled off</div>`;
+  const hotels = (prop === "All" ? props : [prop]).map((h) => { const r = data.appts.filter((a) => a.kind === "intake" && a.property === h); const day1 = data.appts.filter((o) => o.kind === "offer" && o.property === h && o.dayOneAt).length; return `<div class="sum" style="font-size:1.05rem"><b>${esc(h)}:</b> met <b>${r.length}</b> → showed up day one <b style="color:#3ddc97">${day1}</b>${r.length ? ` (${Math.round(day1 / r.length * 100)}%)` : ""}</div>`; }).join("");
+  $("summary").innerHTML = hotels + `<div class="sum"><b>${esc(prop === "All" ? "All properties" : prop)}:</b> ${n((z) => z.c.status === "CONFIRMED" && !z.o)} ready for an offer · ${n((z) => z.c.status === "PENDING")} waiting to confirm · ${n((z) => z.o && z.o.status === "PENDING")} offers out · <b style="color:#3ddc97">${n((z) => z.o && z.o.status === "CONFIRMED")} hired</b> · ${n((z) => z.c.status === "LAPSED")} cooled off · <b style="color:#ff9a9a">${n(stale)} no follow-up in 24h</b></div>`;
   const autos = data.appts.filter((o) => o.kind === "offer" && o.autoFrom && (prop === "All" || o.property === prop));
   $("note").innerHTML = autos.length ? autos.map((o) => `<div class="auto">↪ Offer auto-advanced from ${esc(o.autoFrom)} to <b>${esc(o.client)}</b> (${esc(o.role)}, ${esc(o.property)}). <a href="${esc(smsHref(o.phone, offerText(o)))}">Send them the text</a></div>`).join("") : "";
   $("list").innerHTML = rs.map(({ c, o }) => {
@@ -95,6 +99,7 @@ function render() {
       badge = o.status === "CONFIRMED" ? "HIRED" : o.status === "PENDING" ? "OFFER" : "OFFER " + o.status;
       detail = o.status === "CONFIRMED" ? `Accepted offer: starts ${esc(day(o.start))}, ${esc(o.pay)} · by "${esc(o.acceptedName)}" ${esc(ago(o.acceptedAt))}` : o.status === "PENDING" ? `Offer out ${esc(ago(o.created))}: starts ${esc(day(o.start))}, ${esc(o.pay)}` : `Offer ${esc(o.status.toLowerCase())}${o.advancedTo ? " → went to " + esc(o.advancedTo) : ""}`;
       if (o.status === "PENDING") b.push(`<a class="btn" href="${esc(smsHref(o.phone, offerText(o)))}">Text the offer</a>`);
+      if (o.status === "CONFIRMED") { if (o.dayOneAt) { badge = "DAY ONE ✓"; detail += ` · showed up ${esc(new Date(o.dayOneAt).toLocaleDateString("en-US"))}`; b.push(`<button class="btn btn-ghost" type="button" data-dayone="${o.id}" data-undo="1">Undo day one</button>`); } else b.push(`<button class="btn" type="button" data-dayone="${o.id}">Showed up day one</button>`); }
     } else if (c.status === "CONFIRMED") {
       detail = `Confirmed ${esc(ago(c.acceptedAt))} · texted ${esc(ago(c.created))}`;
       b.push(`<button class="btn" type="button" data-offer="${c.id}">Send offer</button>`);
@@ -103,7 +108,9 @@ function render() {
       b.push(c.reminderDue ? `<a class="btn" data-remind="${c.id}" href="${esc(smsHref(c.phone, intakeText(c)))}">Send reminder</a>` : `<a class="btn btn-ghost" href="${esc(smsHref(c.phone, intakeText(c)))}">Text again</a>`);
     } else detail = c.status === "LAPSED" ? `Didn't confirm in time (texted ${esc(ago(c.created))})` : "";
     const form = !o && c.status === "CONFIRMED" ? `<form class="row" data-form="${c.id}" hidden style="margin-top:8px"><label>Start date<input type="date" name="start" required></label><label>Pay<input name="pay" required placeholder="$22/hr"></label><button class="btn" type="submit" style="flex:0 1 auto">Create offer</button></form>` : "";
-    return `<div class="cand"><h3><span>${esc(c.client)} <span class="muted" style="font-weight:400">· ${esc(c.role)} · ${esc(c.property)}</span></span><span class="badge b-${badge.split(" ")[0]}">${esc(badge)}</span></h3><div class="meta">${esc(c.phone)} · ${detail}</div><div class="btns">${b.join("")}</div>${form}<div id="m-${c.id}"></div></div>`;
+    const z = { c, o };
+    if (stale(z)) b.push(`<button class="btn btn-ghost" type="button" data-touch="${c.id}">I followed up</button>`);
+    return `<div class="cand"${stale(z) ? ' style="border-left:4px solid #d94848;padding-left:10px"' : ""}><h3><span>${esc(c.client)} <span class="muted" style="font-weight:400">· ${esc(c.role)} · ${esc(c.property)}</span></span><span>${stale(z) ? `<span class="badge" style="background:#7f1d1d">🔴 NO FOLLOW-UP ${Math.floor((Date.now() - lastTouch(z)) / 3600e3)}H</span> ` : ""}<span class="badge b-${badge.split(" ")[0]}" style="${badge.startsWith("DAY") ? "background:#0f766e" : ""}">${esc(badge)}</span></span></h3><div class="meta">${esc(c.phone)} · ${detail}</div><div class="btns">${b.join("")}</div>${form}<div id="m-${c.id}"></div></div>`;
   }).join("") || '<p class="muted">No candidates yet. Add one above.</p>';
 }
 async function load() { try { data = await api(); render(); } catch (e) { say("note", esc(e.message), false); } }
@@ -111,6 +118,8 @@ document.addEventListener("click", async (e) => {
   const d = e.target.dataset;
   if (d.p) { prop = d.p; return render(); }
   if (d.offer) { const f = document.querySelector(`[data-form="${d.offer}"]`); f.hidden = !f.hidden; const s = f.querySelector("[name=start]"); if (!s.value) s.value = new Date(Date.now() + 10 * 86400e3).toISOString().slice(0, 10); return; }
+  if (d.dayone) { await api({ action: "dayone", id: d.dayone, undo: d.undo ? 1 : 0 }).catch(() => {}); return load(); }
+  if (d.touch) { await api({ action: "touch", id: d.touch }).catch(() => {}); return load(); }
   if (d.remind) api({ action: "reminded", id: d.remind }).then(load).catch(() => {});
 });
 document.addEventListener("submit", async (e) => {

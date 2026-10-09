@@ -421,6 +421,16 @@ module.exports = async (req, res) => {
       return res.json({ ok: true, appts: out });
     }
 
+    if (act === "dayone" || act === "touch") {
+      // Hiring: record that an offer-accepted hire showed up on day one, or that someone followed up with a candidate.
+      const a = await store.get(K.appt(clean(b.id, 20)));
+      if (!a || a.s !== s) return res.status(404).json({ error: "Not found." });
+      if (act === "dayone") a.dayOneAt = b.undo ? null : new Date().toISOString();
+      else a.touchedAt = new Date().toISOString();
+      await store.put(K.appt(a.id), a);
+      return res.json({ ok: true, appt: withStatus(a) });
+    }
+
     if (act === "cancel" || act === "reminded") {
       const a = await store.get(K.appt(clean(b.id, 20)));
       if (!a || a.s !== s) return res.status(404).json({ error: "Appointment not found." });
