@@ -109,7 +109,7 @@
       </div>
       <div class="row" style="margin-top:10px">
         <label>Payment terms<select id="terms">
-          <option>Due on receipt</option><option>Net 15</option><option selected>Net 30</option><option>Net 45</option><option>Net 60</option><option>Net 90</option><option>Card on file, monthly</option><option>Quarterly upfront</option><option>Annual upfront</option>
+          <option>Due on receipt</option><option>Net 15</option><option selected>Net 30</option><option>Net 45</option><option>Net 60</option><option>Net 90</option><option>Card on file, monthly</option><option>Monthly, net 60</option><option>Quarterly upfront</option><option>Termly</option><option>Annual upfront</option>
         </select></label>
         <label>Payment method<select id="pmethod">
           <option>Card</option><option>ACH</option><option selected>Bank transfer</option><option>Paper check</option><option>Direct debit</option><option>Cash</option><option>Boleto</option><option>Pix</option><option>M-Pesa Paybill</option><option>Other</option>
@@ -119,6 +119,7 @@
       <div class="row" style="margin-top:10px">
         <label>Deposit %<input id="deposit" type="number" min="0" max="100" step="1" value="0" /></label>
         <label>Valid for (days)<input id="valid" type="number" min="1" max="365" step="1" value="30" /></label>
+        <label>Contract term (months)<input id="term" type="number" min="0" max="120" step="1" value="0" aria-label="Contract term in months" /></label>
         <label style="flex:2 1 220px">Notes<input id="notes" value="Thank you for your business." /></label>
       </div>
       <div style="margin-top:12px">
@@ -138,6 +139,7 @@
         <div class="grand"><span class="muted" style="font-size:1rem;font-weight:400">Total</span><span id="total"></span></div>
         <div id="deprow" hidden><span class="muted">Deposit due</span><span id="depv"></span></div>
         <div id="balrow" hidden><span class="muted">Balance due</span><span id="balv"></span></div>
+        <div id="termrow" style="display:none;justify-content:space-between"><span class="muted" id="termlabel"></span><b id="termv"></b></div>
         <div id="stagesum" style="display:grid;gap:2px;justify-items:end"></div>
       </div>
 
@@ -201,6 +203,7 @@
           ["Supervision (weeks)", 6, 2400, { section: "General conditions", cost: 2100 }]],
         checklist: [["Dumpsters / debris haul", 2, 650, "dumpster|debris|haul|disposal"], ["Permits & inspections", 1, 900, "permit|inspection"], ["After-hours work premium", 1, 1500, "after-hours|after hours|night"], ["Contingency (5%)", 1, 2500, "contingency"], ["Final clean", 1, 800, "clean"]] },
       "Creative studio / proposal": { seller: "Signal & Thread Studio", client: "", tax: 0, method: "Bank transfer", terms: "Net 15", brand: { color: "#7c3aed", font: "Modern", intro: "Brand refresh and launch website. Fixed scope, three review rounds, delivered in 8 weeks." }, stages: [[50, "On signature"], [50, "On launch"]], items: [["Discovery & brand strategy workshop", 1, 4500], ["Visual identity system (logo, type, color)", 1, 9500], ["Website design, up to 8 pages", 1, 14000], ["Launch content & photo art direction", 1, 6000], ["Project management (per month)", 2, 1500]] },
+      "Telecom / managed services (SG)": { seller: "Kallang Pacific Telecom", client: "", tax: 9, currency: "SGD", method: "Bank transfer", terms: "Monthly, net 60", term: 36, items: [["Managed connectivity, per site (monthly)", 40, 420], ["24/7 NOC monitoring & support (monthly)", 1, 6500], ["Field engineer visits, pooled (monthly)", 1, 3200], ["Quoting platform licence, 25 seats (monthly)", 25, 99]] },
       "Cleaning / home services": { seller: "Sparkle Pro", client: "Maple Office Park", tax: 0, items: [["Office cleaning visit", 12, 340], ["Deep clean (quarterly)", 1, 1200], ["Window washing", 2, 450], ["Supplies & consumables", 12, 45]] },
       "Roofing / solar (NZ)": { seller: "Kauri Ridge Roofing & Solar", client: "", tax: 15, currency: "NZD", incl: true, method: "Direct debit", stages: [[30, "Deposit"], [60, "On installation"], [10, "On grid connection"]],
         checklist: [["Scaffolding / edge protection", 1, 1200, "scaffold|edge protection|safety"], ["Electrical certificate of compliance", 1, 250, "certificate|compliance|coc"], ["Monitoring / app setup", 1, 150, "monitor|app"], ["Travel", 1, 120, "travel"]], items: [["6.6 kW solar system (16 × 410 W panels)", 1, 9800], ["5 kW hybrid inverter", 1, 3200], ["Racking & roof fixings", 1, 1100], ["Installation labour (hours)", 16, 95], ["Grid connection & compliance certificate", 1, 650]] },
@@ -286,6 +289,17 @@
       const dep = r2(total * (q.deposit || 0) / 100);
       return { sub, d, t, total, incl: !!q.taxIncluded, dep, bal: r2(total - dep) };
     }
+    // Recurring contracts: the quote total is the price per billing period.
+    function contract(total, terms, months) {
+      const m = Math.max(0, Math.floor(Number(months) || 0));
+      if (!m) return null;
+      const t = String(terms || "");
+      const per = /month/i.test(t) ? 1 : /quarter/i.test(t) ? 3 : /termly/i.test(t) ? 4 : /annual/i.test(t) ? 12 : 0;
+      const name = { 1: "month", 3: "quarter", 4: "term", 12: "year" }[per];
+      if (!per) return { months: m, periods: 1, name: "", value: total };
+      const periods = Math.max(1, Math.ceil(m / per));
+      return { months: m, periods, name, value: r2(total * periods) };
+    }
     function totals() {
       return totalsFor({ items: items.map((i) => ({ ...i, qty: eq(i) })), discount: Number($("#discount").value) || 0, tax: Number($("#tax").value) || 0, taxIncluded: $("#incl").value === "1", deposit: Number($("#deposit").value) || 0 });
     }
@@ -296,6 +310,9 @@
       $("#taxlabel").textContent = `${taxName()} (${Number($("#tax").value) || 0}%${x.incl ? ", included" : ""})`;
       $("#deprow").hidden = $("#balrow").hidden = !x.dep;
       $("#depv").textContent = money(x.dep); $("#balv").textContent = money(x.bal);
+      const ct = contract(x.total, $("#terms").value, $("#term").value);
+      $("#termrow").style.display = ct ? "flex" : "none";
+      if (ct) { $("#termlabel").textContent = ct.name ? `${money(x.total)} per ${ct.name} × ${ct.periods} (${ct.months} mo) = contract value` : `Contract value (${ct.months} mo)`; $("#termv").textContent = money(ct.value); }
       const sa = stageAmounts(x.total, stages);
       sa.forEach((st, k) => { const el = document.querySelector(`[data-samt="${k}"]`); if (el) el.textContent = money(st.amount); });
       $("#stagesum").innerHTML = sa.map((st) => `<div style="display:flex;gap:24px"><span class="muted">${esc(st.label || "Stage")} (${st.pct}%)</span><span>${money(st.amount)}</span></div>`).join("");
@@ -331,6 +348,7 @@
       taxNameEdited = false; defaultTaxName();
       if (t.method) $("#pmethod").value = t.method;
       if (t.terms) $("#terms").value = t.terms;
+      $("#term").value = t.term || 0;
       const b = t.brand || {};
       logo = ""; $("#logo").value = "";
       $("#bcolor").value = b.color || "#111111"; $("#bfont").value = b.font || "Clean sans"; $("#intro").value = b.intro || "";
@@ -379,7 +397,7 @@
       renderStages();
     });
     $("#add-stage").onclick = () => { stages.push({ pct: Math.max(0, 100 - stages.reduce((a, b) => a + b.pct, 0)), label: "" }); renderStages(); const ins = document.querySelectorAll('#stages input[data-f="label"]'); ins[ins.length - 1].focus(); };
-    ["#discount", "#tax", "#cur", "#incl", "#deposit"].forEach((s) => $(s).addEventListener("input", () => { recalc(); document.querySelectorAll("[data-amt]").length && recalc(); }));
+    ["#discount", "#tax", "#cur", "#incl", "#deposit", "#term", "#terms"].forEach((s) => $(s).addEventListener("input", () => { recalc(); document.querySelectorAll("[data-amt]").length && recalc(); }));
 
     $("#draft").onclick = async () => {
       const job = $("#job").value.trim(); if (!job) return $("#job").focus();
@@ -418,7 +436,7 @@
       const x = totals();
       const g = G();
       const qi = items.map((i) => (i.pg && g ? { ...i, desc: `${i.desc} (${i.qty !== 1 ? i.qty + " × " : ""}${g} guests)`, qty: eq(i) } : i));
-      return { seller: $("#seller").value, client: $("#client").value, industry, items: qi, guests: g, taxName: taxName(), discount: Number($("#discount").value) || 0, tax: Number($("#tax").value) || 0, taxIncluded: x.incl, currency: $("#cur").value, terms: $("#terms").value, method: $("#pmethod").value, payDetails: $("#pdetails").value, deposit: Number($("#deposit").value) || 0, stages: stages.map((st) => ({ label: st.label, pct: Number(st.pct) || 0 })), validDays: Number($("#valid").value) || 30, notes: $("#notes").value, brand: { logo, color: $("#bcolor").value, font: $("#bfont").value, intro: $("#intro").value.trim() }, total: x.total };
+      return { seller: $("#seller").value, client: $("#client").value, industry, items: qi, guests: g, taxName: taxName(), discount: Number($("#discount").value) || 0, tax: Number($("#tax").value) || 0, taxIncluded: x.incl, currency: $("#cur").value, terms: $("#terms").value, method: $("#pmethod").value, payDetails: $("#pdetails").value, deposit: Number($("#deposit").value) || 0, stages: stages.map((st) => ({ label: st.label, pct: Number(st.pct) || 0 })), validDays: Number($("#valid").value) || 30, term: Math.max(0, Math.floor(Number($("#term").value) || 0)), notes: $("#notes").value, brand: { logo, color: $("#bcolor").value, font: $("#bfont").value, intro: $("#intro").value.trim() }, total: x.total };
     }
 
     $("#simulate").onclick = async () => {
@@ -491,6 +509,7 @@
           ${q.discount ? `<tr><td>Discount (${q.discount}%)</td><td class="r">−${money(x.d)}</td></tr>` : ""}
           ${q.tax ? `<tr><td id="q-taxlabel">${esc(q.taxName || "Tax")} (${q.tax}%${x.incl ? ", included" : ""})</td><td class="r">${money(x.t)}</td></tr>` : ""}
           <tr><td><b>Total</b></td><td class="r"><b id="q-total" style="font-size:1.3em">${money(x.total)}</b></td></tr>
+          ${(() => { const ct = contract(x.total, q.terms, q.term); return ct && ct.name ? `<tr><td>Per ${ct.name}</td><td class="r" id="q-per">${money(x.total)}</td></tr><tr><td>Contract term</td><td class="r" id="q-term">${ct.months} months · ${ct.periods} payments</td></tr><tr><td><b>Total contract value</b></td><td class="r"><b id="q-tcv">${money(ct.value)}</b></td></tr>` : ct ? `<tr><td>Contract term</td><td class="r" id="q-term">${ct.months} months</td></tr>` : ""; })()}
           ${x.dep ? `<tr><td>Deposit due (${q.deposit}%)</td><td class="r" id="q-deposit">${money(x.dep)}</td></tr><tr><td>Balance due</td><td class="r" id="q-balance">${money(x.bal)}</td></tr>` : ""}
         </tbody></table>
         ${(q.stages || []).length ? `<h3 style="margin:16px 0 0;color:#111">Payment schedule</h3>
