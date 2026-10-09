@@ -7,7 +7,16 @@
   <meta http-equiv="refresh" content="0; url=/app.html" />
   <script>location.replace("/app.html" + location.search + location.hash);</script>
 </head>
-<body style="background:#0b0b10;color:#ececf1;font-family:system-ui;padding:24px">
+<body style="background:#0b0b10;color:#ececf1;font-family:system-ui;padding:24px;max-width:760px;margin:auto;line-height:1.55">
+  <h1>Quotax: bid control for estimators</h1>
+  <p><b>Thin-margin bids can't leave the building without a named sign-off.</b></p>
+  <ul>
+    <li><b>Margin floor per bid.</b> Set the floor on each bid (scope and risk vary), not one number for every job.</li>
+    <li><b>🚩 THIN JOB flag.</b> Internal cost + markup on every line. When margin drops below the floor, the bid is flagged with the dollar shortfall and each thin section is called out.</li>
+    <li><b>Send gate.</b> A bid under its floor is held: print and share are locked until an approver who isn't the estimator signs off with name and reason. Every approval is time-stamped and logged.</li>
+    <li><b>Nothing to implement.</b> No take-off, BIM or login. Estimators open a web page and type the lines. Itemized sections, subtotals and totals that foot, with costs and margins never on the customer's copy.</li>
+  </ul>
+  <p><a href="/app.html?t=interiors" style="color:#9fb4ff">See it on a commercial fit-out bid (17.3% margin vs an 18% floor, held at send) →</a></p>
   <p><a href="/app.html" style="color:#9fb4ff">Open the Quotax quote builder →</a></p>
   <p>Team Quotax</p>
 </body>

@@ -52,7 +52,7 @@
     .btn:disabled { opacity: .45; cursor: not-allowed; }
     @media print {
       body { background: #fff; color: #111; }
-      .nav, .app, .foot, #quote-out .actions, #gen-warn, #gate, #gate-stamp, #share-box { display: none !important; }
+      .nav, .app, .foot, #bid-control, #quote-out .actions, #gen-warn, #gate, #gate-stamp, #share-box { display: none !important; }
       #quote-out { display: block !important; padding: 0 !important; }
       #proposal { border: 0 !important; }
     }
@@ -67,6 +67,18 @@
   </header>
 
   <noscript><p class="wrap">Quotax needs JavaScript enabled to build quotes.</p></noscript>
+  <section class="wrap" id="bid-control" aria-label="Bid control" style="padding-top:20px">
+    <div class="card" style="padding:16px 20px;border:1px solid #7f1d1d">
+      <h2 style="margin:0 0 6px;font-size:1.15rem">🔒 Bid control: thin-margin bids can't leave the building without a named sign-off</h2>
+      <ul style="margin:0;padding-left:18px;line-height:1.6">
+        <li><b>Margin floor per bid.</b> Set the floor on each bid (scope and risk vary), not one number for every job.</li>
+        <li><b>🚩 THIN JOB flag.</b> Internal cost + markup on every line. The moment margin drops below the floor, the bid is flagged with the dollar shortfall, and each thin section (framing, finishes and so on) is called out.</li>
+        <li><b>Send gate.</b> A bid under its floor is <b>held</b>: print and share stay locked until an approver who isn't the estimator signs off with their name and a reason. The approval is time-stamped and logged.</li>
+        <li><b>Nothing to implement.</b> No take-off, BIM or login. Estimators open a web page, type the lines, and the checks run as they type. Costs, margins and approvals never appear on the customer's copy.</li>
+      </ul>
+      <p style="margin:8px 0 0"><a class="btn btn-sm" href="/app.html?t=interiors">See it on a fit-out bid →</a> <span class="muted" style="font-size:.85rem">loads a commercial interiors bid at 17.3% margin against an 18% floor. Click <b>Generate quote</b> to see it held.</span></p>
+    </div>
+  </section>
   <main class="wrap app">
     <section class="card" style="padding:20px">
       <h2 style="margin-bottom:6px">1 · Build the quote</h2>
@@ -208,7 +220,7 @@
       "IT / software": { seller: "BrightOps IT", client: "Harbor Logistics", tax: 8.5, items: [["Onboarding & setup", 1, 3500], ["User licenses (per seat / yr)", 45, 240], ["Data migration", 1, 2200], ["Premium support (per month)", 12, 400]] },
       "Events / catering": { seller: "Golden Fork Events", client: "Lumen Labs", tax: 8.5, guests: 120, floor: 30, items: [["Dinner, 3 courses", 1, 68, { pg: true, cost: 31 }], ["Open bar, 3 hours", 1, 32, { pg: true, cost: 12 }], ["Event staff (per person)", 10, 280, { cost: 190 }], ["Venue styling & rentals", 1, 2600, { cost: 1700 }]],
         checklist: [["Service charge / gratuity", 1, 0, "service charge|gratuity"], ["Rentals: linens, glassware", 1, 450, "linen|glass|rental"], ["Delivery & setup", 1, 300, "deliver|setup|set-up"], ["Late-night / overtime staff", 1, 0, "overtime|late"]] },
-      "Interiors / fit-out": { seller: "Plumbline Interiors", client: "", tax: 7, floor: 18, adv: true, items: [
+      "Interiors / fit-out": { seller: "Plumbline Interiors", client: "Harbor Medical Group (TI, Suite 300)", tax: 7, floor: 18, adv: true, items: [
           ["Strip-out & disposal", 1, 6800, { section: "Demolition", cost: 5200 }],
           ["Metal stud framing (lf)", 420, 38, { section: "Framing & drywall", cost: 30 }], ["Drywall hang & finish (sf)", 3800, 4.1, { section: "Framing & drywall", cost: 3.55 }],
           ["Carpet tile (sy)", 520, 46, { section: "Finishes", cost: 39 }], ["Paint, 2 coats (sf)", 7600, 1.35, { section: "Finishes", cost: 1.05 }],
@@ -277,7 +289,7 @@
       $("#covered").textContent = checklist.length ? `Checklist: ${ok.length}/${checklist.length} covered${ok.length ? ` (✓ ${ok.join(", ")})` : ""}` : "";
       const m = margin();
       $("#margin-box").hidden = !($("#adv").checked || m);
-      $("#margin-read").innerHTML = m ? `${m.pct < m.target ? `<span id="thin-flag" role="alert" style="display:inline-block;background:#7f1d1d;color:#fff;font-weight:800;border-radius:6px;padding:2px 8px;margin-right:6px">🚩 THIN JOB</span>` : `<span id="ok-flag" style="display:inline-block;background:#14532d;color:#bbf7d0;font-weight:700;border-radius:6px;padding:2px 8px;margin-right:6px">✓ Above floor</span>`}Margin <b id="margin-pct" style="color:${m.pct < m.target ? "#ff7a7a" : "#3ddc97"}">${m.pct.toFixed(1)}%</b> (cost ${money(m.cost)}, price ${money(m.rev)})${m.uncosted ? ` · ${m.uncosted} line(s) without cost` : ""}
+      $("#margin-read").innerHTML = m ? `${m.pct < m.target ? `<span id="thin-flag" role="alert" style="display:inline-block;background:#7f1d1d;color:#fff;font-weight:800;border-radius:6px;padding:2px 8px;margin-right:6px">🚩 THIN JOB</span>` : `<span id="ok-flag" style="display:inline-block;background:#14532d;color:#bbf7d0;font-weight:700;border-radius:6px;padding:2px 8px;margin-right:6px">✓ Above floor</span>`}${m.pct < m.target ? `<span style="color:#fca5a5;font-weight:700;margin-right:6px">🔒 Held at send until approved</span>` : ""}Margin <b id="margin-pct" style="color:${m.pct < m.target ? "#ff7a7a" : "#3ddc97"}">${m.pct.toFixed(1)}%</b> (cost ${money(m.cost)}, price ${money(m.rev)})${m.uncosted ? ` · ${m.uncosted} line(s) without cost` : ""}
         ${m.sections.some((x) => x.name) ? `<div style="margin-top:6px;display:flex;flex-wrap:wrap;gap:6px">${m.sections.map((x) => `<span style="font-size:.8rem;border:1px solid ${x.pct < m.target ? "#b91c1c" : "#2a2a3a"};border-radius:999px;padding:2px 8px;color:${x.pct < m.target ? "#ff9a9a" : "inherit"}">${esc(x.name || "Other")}: ${x.pct.toFixed(1)}%</span>`).join("")}</div>` : ""}` : `<span class="muted">Enter costs to see your margin.</span>`;
     }
     function stageAmounts(total, list) {
