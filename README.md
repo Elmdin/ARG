@@ -9,7 +9,9 @@ It contains everything AI customers need to click through and convert:
 - **Pre-order** checkout: a built-in mock, or your Stripe test link
 - **`/deals.html`**: the LOIs and pre-orders signed on this device, for the Seller and Fundraiser to quote
 
-No build step. Edit `config.js`, push, and it's live.
+No build step. Pick a preset in `config.js`, push, and it's live.
+
+**Accounts, API keys and settings: see [SETUP.md](SETUP.md).**
 
 ## Before 11:00: one-time setup (about 10 min)
 
@@ -24,12 +26,15 @@ Local preview: `python3 -m http.server` then open http://localhost:8000.
 
 ## At 12:00: rebrand in 5 minutes
 
-Edit **only `config.js`**: `name`, `tagline`, `headline`, `subhead`, `accent`, `customer`, `whyNow`, `features`, `pricing`, `demo.*`, `team`.
+Choosing the idea: preview presets live with `?p=evalue`, `?p=captain60` or `?p=lareo`, then set `ACTIVE` in `config.js`.
+For a brand-new idea, copy `presets/blank.js`, give your AI tool the 2-line idea, and let it fill in the file.
+
+Edit **only the active preset** (`presets/<name>.js`): `name`, `tagline`, `headline`, `subhead`, `accent`, `customer`, `whyNow`, `features`, `pricing`, `demo.*`, `team`.
 The most important one is `demo.systemPrompt`, because it turns the demo into the product.
 
 During the game:
 
-| Event | Change in `config.js` |
+| Event | Change in the active preset |
 |---|---|
 | Seller closes a deal | Add to `testimonials` and bump `stats` |
 | Customer objection ("too expensive", "security?") | Add a feature or a cheaper plan that answers it |
@@ -41,9 +46,9 @@ During the game:
 
 | Rank | Idea | Source | Why / why not |
 |---|---|---|---|
-| **1** | **Evalue**: an agent that stress-tests your AI agent and reports failures with evidence | `Elmdin/evals` | **Preloaded.** B2B, AI-native, and the demo is the product. Strong "why now". Curveballs like a new model release *help* the pitch. AI customers are themselves agents, so the story is very meta. |
-| 2 | **Captain60**: multilingual AI intake agent for social-service agencies (web, SMS, phone) | `wimaan3/Cap60Agent` | Good impact story and a live chat demo is easy. Government buyers sell slowly, so it's a weaker VC story. |
-| 3 | **Lareo**: wearable capture data licensed to humanoid / physical-AI labs | `Elmdin/lareo` | Very hot fundraising narrative and existing renders. Hardware means no live product to click, so the site becomes a data marketplace plus a waitlist. |
+| **1** | **Evalue** (`?p=evalue`): an agent that stress-tests your AI agent and reports failures with evidence | `Elmdin/evals` | **Default.** B2B, AI-native, and the demo is the product. Strong "why now". Curveballs like a new model release *help* the pitch. AI customers are themselves agents, so the story is very meta. |
+| 2 | **Captain60** (`?p=captain60`): multilingual AI intake agent for social-service agencies (web, SMS, phone) | `wimaan3/Cap60Agent` | Good impact story and a live chat demo is easy. Government buyers sell slowly, so it's a weaker VC story. |
+| 3 | **Lareo** (`?p=lareo`): wearable capture data licensed to humanoid / physical-AI labs | `Elmdin/lareo` | Very hot fundraising narrative and existing renders. Hardware means no live product to click, so the site becomes a data marketplace plus a waitlist. |
 | 4 | AutoApply: an AI job-application copilot | `Elmdin/AutoApply` | Consumer, crowded, and platform-ToS risk. Skip unless the team loves it. |
 | - | NeuralForge, Triomni | | Deep science or research. Too slow to explain in 90 seconds. |
 
