@@ -83,7 +83,16 @@
       <div class="row" style="margin-top:14px">
         <label>Discount %<input id="discount" type="number" min="0" max="100" step="0.5" value="0" /></label>
         <label>Tax %<input id="tax" type="number" min="0" max="50" step="0.25" value="8.5" /></label>
-        <label style="flex:2 1 220px">Terms<input id="notes" value="50% deposit, balance on delivery. Valid 30 days." /></label>
+        <label>Currency<select id="cur">
+          <option>USD</option><option>CAD</option><option>AUD</option><option>NZD</option><option>EUR</option><option>GBP</option><option>PHP</option><option>KES</option><option>BRL</option><option>SGD</option><option>AED</option>
+        </select></label>
+        <label>Tax mode<select id="incl"><option value="0">Tax added on top</option><option value="1">Prices include tax (GST/VAT)</option></select></label>
+      </div>
+      <div class="row" style="margin-top:10px">
+        <label>Payment terms<select id="terms">
+          <option>Due on receipt</option><option>Net 15</option><option selected>Net 30</option><option>Net 45</option><option>Net 60</option><option>Net 90</option><option>Card on file, monthly</option><option>Quarterly upfront</option><option>Annual upfront</option>
+        </select></label>
+        <label style="flex:2 1 220px">Notes<input id="notes" value="50% deposit, balance on delivery. Valid 30 days." /></label>
       </div>
 
       <div class="totals">
@@ -113,7 +122,11 @@
   (function () {
     const $ = (s) => document.querySelector(s);
     const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
-    const money = (n) => "$" + (Math.round(n * 100) / 100).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    const money = (n) => {
+      const c = (document.querySelector("#cur") || {}).value || "USD";
+      try { const f = new Intl.NumberFormat(undefined, { style: "currency", currency: c, currencyDisplay: "narrowSymbol" }).format(Math.round(n * 100) / 100); return c === "USD" || f.includes(c) ? f : f + " " + c; }
+      catch (_) { return c + " " + (Math.round(n * 100) / 100).toFixed(2); }
+    };
 
     const TEMPLATES = {
       "Agency / consulting": { seller: "Northwind Studio", client: "Acme Dental", tax: 0, items: [["Discovery & strategy workshop", 1, 2400], ["UX/UI design (hours)", 40, 125], ["Development (hours)", 60, 140], ["Booking system integration", 1, 1800], ["Monthly support retainer", 3, 650]] },
@@ -128,13 +141,18 @@
     function totals() {
       const sub = items.reduce((s, i) => s + i.qty * i.price, 0);
       const d = sub * (Number($("#discount").value) || 0) / 100;
-      const t = (sub - d) * (Number($("#tax").value) || 0) / 100;
-      return { sub, d, t, total: Math.round((sub - d + t) * 100) / 100 };
+      const rate = (Number($("#tax").value) || 0) / 100;
+      if ($("#incl").value === "1") {
+        const gross = sub - d, t = gross - gross / (1 + rate);
+        return { sub, d, t, total: Math.round(gross * 100) / 100, incl: true };
+      }
+      const t = (sub - d) * rate;
+      return { sub, d, t, total: Math.round((sub - d + t) * 100) / 100, incl: false };
     }
     function recalc() {
       const x = totals();
       $("#sub").textContent = money(x.sub); $("#disc").textContent = "−" + money(x.d);
-      $("#taxv").textContent = money(x.t); $("#total").textContent = money(x.total);
+      $("#taxv").textContent = (x.incl ? "incl. " : "") + money(x.t); $("#total").textContent = money(x.total);
       document.querySelectorAll("[data-amt]").forEach((el) => { const i = items[el.dataset.amt]; el.textContent = money(i.qty * i.price); });
     }
     function render() {
@@ -162,7 +180,7 @@
     });
     $("#rows").addEventListener("click", (e) => { if (e.target.dataset.del != null) { items.splice(e.target.dataset.del, 1); render(); } });
     $("#add").onclick = () => { items.push({ desc: "New item", qty: 1, price: 100 }); render(); };
-    ["#discount", "#tax"].forEach((s) => $(s).addEventListener("input", recalc));
+    ["#discount", "#tax", "#cur", "#incl"].forEach((s) => $(s).addEventListener("input", () => { recalc(); document.querySelectorAll("[data-amt]").length && recalc(); }));
 
     $("#draft").onclick = async () => {
       const job = $("#job").value.trim(); if (!job) return $("#job").focus();
@@ -182,7 +200,7 @@
 
     function quote() {
       const x = totals();
-      return { seller: $("#seller").value, client: $("#client").value, industry, items, discount: Number($("#discount").value) || 0, tax: Number($("#tax").value) || 0, notes: $("#notes").value, total: x.total };
+      return { seller: $("#seller").value, client: $("#client").value, industry, items, discount: Number($("#discount").value) || 0, tax: Number($("#tax").value) || 0, taxIncluded: x.incl, currency: $("#cur").value, terms: $("#terms").value, notes: $("#notes").value, total: x.total };
     }
 
     $("#simulate").onclick = async () => {
@@ -209,7 +227,7 @@
           <p class="muted" style="margin-top:10px">${s.mode === "live" ? "Live AI agents" : "Simulated panel"} · ${(s.ms / 1000).toFixed(1)}s</p>`;
         const a = $("#apply");
         if (a) a.onclick = () => {
-          const x = totals(); const pre = x.sub; const taxF = 1 + (Number($("#tax").value) || 0) / 100;
+          const x = totals(); const pre = x.sub; const taxF = $("#incl").value === "1" ? 1 : 1 + (Number($("#tax").value) || 0) / 100;
           const disc = Math.round((1 - s.best.price / taxF / pre) * 1000) / 10;
           if (disc >= 0) { $("#discount").value = disc; recalc(); }
           else { const k = s.best.price / taxF / pre; items = items.map((i) => ({ ...i, price: Math.round(i.price * k * 100) / 100 })); $("#discount").value = 0; render(); }
@@ -223,8 +241,8 @@
       $("#proposal").innerHTML = `<h1 style="margin:0">${esc(q.seller)}</h1><p>Proposal for <b>${esc(q.client)}</b> · ${new Date().toLocaleDateString()}</p>
         <table><tr><th>Item</th><th>Qty</th><th>Unit</th><th>Amount</th></tr>
         ${q.items.map((i) => `<tr><td>${esc(i.desc)}</td><td>${i.qty}</td><td>${money(i.price)}</td><td>${money(i.qty * i.price)}</td></tr>`).join("")}</table>
-        <p style="text-align:right">Subtotal ${money(x.sub)}<br>Discount −${money(x.d)}<br>Tax ${money(x.t)}<br><b style="font-size:1.4em">Total ${money(x.total)}</b></p>
-        <p><b>Terms:</b> ${esc(q.notes)}</p><p style="margin-top:40px">Accepted by: ______________________ Date: __________</p>`;
+        <p style="text-align:right">Subtotal ${money(x.sub)}<br>Discount −${money(x.d)}<br>Tax ${x.incl ? "(included) " : ""}${money(x.t)}<br><b style="font-size:1.4em">Total ${money(x.total)}</b></p>
+        <p><b>Payment terms:</b> ${esc(q.terms)}<br><b>Notes:</b> ${esc(q.notes)}</p><p style="margin-top:40px">Accepted by: ______________________ Date: __________</p>`;
       window.print();
     };
 

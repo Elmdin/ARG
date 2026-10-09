@@ -14,7 +14,7 @@ const PERSONAS = [
 
 const SYSTEM = `You are role-playing a B2B buyer receiving a quote. Stay in character.
 Reply with ONLY a JSON object, no prose:
-{"decision":"accept"|"negotiate"|"reject","walkaway_price":<number: the most you would actually pay in total>,"objection":"<main concern, max 15 words>","says":"<what you'd say to the seller, max 25 words>","would_fix":"<one specific change that would win you, max 15 words>"}`;
+{"decision":"accept"|"negotiate"|"reject","walkaway_price":<number: the most you would actually pay in total, in the quote's currency>,"objection":"<main concern, max 15 words>","says":"<what you'd say to the seller, max 25 words>","would_fix":"<one specific change that would win you, max 15 words>"}`;
 
 function fallback(p, total) {
   const w = Math.round(total * p.factor);
@@ -50,7 +50,8 @@ module.exports = async (req, res) => {
     `Seller: ${q.seller || "a vendor"}. Industry: ${q.industry || "services"}. Client: ${q.client || "your company"}.`,
     "Line items:",
     ...(q.items || []).slice(0, 30).map((i) => `- ${i.desc}: ${i.qty} x $${i.price}`),
-    `Discount: ${q.discount || 0}%. Tax: ${q.tax || 0}%. TOTAL: $${total}.`,
+    `Currency: ${q.currency || "USD"}. Discount: ${q.discount || 0}%. Tax: ${q.tax || 0}%${q.taxIncluded ? " (included in prices)" : ""}. TOTAL: ${total} ${q.currency || "USD"}.`,
+    q.terms ? `Payment terms: ${q.terms}` : "",
     q.notes ? `Terms/notes: ${q.notes}` : "",
   ].join("\n");
 
