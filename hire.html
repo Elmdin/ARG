@@ -1,0 +1,135 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Seasonal hiring board</title><link rel="icon" href="/favicon.svg" type="image/svg+xml"><link rel="stylesheet" href="styles.css">
+<style>
+  [hidden] { display: none !important; }
+  section { padding: 14px 0; }
+  .cb .btn { min-height: 46px; font-size: 1rem; }
+  .cb input, .cb select { min-height: 46px; font-size: 16px; }
+  .row { display: flex; gap: 10px; flex-wrap: wrap; align-items: end; } .row > * { flex: 1 1 140px; }
+  .badge { display: inline-block; font-weight: 800; font-size: .75rem; letter-spacing: .05em; padding: 3px 9px; border-radius: 999px; color: #fff; white-space: nowrap; }
+  .b-PENDING { background: #4a4a5c; } .b-CONFIRMED { background: #1f8f5f; } .b-LAPSED { background: #d94848; } .b-CANCELLED { background: #6b6b78; } .b-FILLED { background: #2f6fd6; }
+  .b-OFFER { background: #8a5a00; } .b-HIRED { background: #2f6fd6; }
+  .cand { border-top: 1px solid var(--line); padding: 12px 0; }
+  .cand h3 { margin: 0; display: flex; justify-content: space-between; gap: 8px; flex-wrap: wrap; font-size: 1rem; }
+  .cand .meta { color: var(--muted); margin: 4px 0 8px; font-size: .9rem; }
+  .btns { display: flex; gap: 8px; flex-wrap: wrap; }
+  .tabs { display: flex; gap: 8px; flex-wrap: wrap; margin: 8px 0; }
+  .tabs button { background: #0f0f15; border: 1px solid var(--line); color: var(--fg); border-radius: 999px; padding: 8px 14px; cursor: pointer; font: inherit; }
+  .tabs button.on { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 25%, transparent); }
+  .sum { background: #0f0f15; border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; margin: 6px 0; }
+  .msg { border-radius: 10px; padding: 10px 12px; margin: 8px 0; } .msg.ok { background: #12392b; color: #bff5dc; } .msg.err { background: #3d1717; color: #ffc4c4; }
+  .auto { background: #13283d; color: #bfe0ff; border-radius: 8px; padding: 6px 10px; margin-top: 6px; font-size: .9rem; }
+</style></head>
+<body><main class="wrap cb" style="padding:20px 16px 48px">
+<h2 style="margin-bottom:2px" id="title">Seasonal hiring board</h2>
+<p class="muted" style="margin:0">Add a candidate at the fair → they get a text and type their name to hold their spot → send the offer in one tap. If an offer lapses, it goes to the next confirmed candidate automatically.</p>
+
+<section class="card" style="padding:16px;margin-top:12px">
+  <h3 style="margin-top:0">Quick add (job fair)</h3>
+  <form id="quick" class="row">
+    <label>Name<input name="client" required autocomplete="off"></label>
+    <label>Phone<input name="phone" required inputmode="tel"></label>
+    <label>Property<select name="property" id="qProp"></select></label>
+    <label>Role<select name="role" id="qRole"></select></label>
+    <button class="btn" type="submit" style="flex:0 1 auto">Add + text</button>
+  </form>
+  <div id="qMsg"></div>
+</section>
+
+<div class="tabs" id="props" role="tablist" aria-label="Property"></div>
+<div id="summary"></div>
+<label style="display:flex;gap:8px;align-items:center;margin:6px 0"><input type="checkbox" id="auto" style="width:auto;min-height:0"> Auto-advance: when an offer lapses, offer it to the next confirmed candidate automatically</label>
+<div id="note"></div>
+<section><div id="list"></div></section>
+</main>
+<script>
+const $ = (id) => document.getElementById(id);
+const S = (new URLSearchParams(location.search).get("s") || "halcyon").toLowerCase();
+const esc = (s) => String(s == null ? "" : s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const first = (n) => String(n || "").trim().split(/\s+/)[0];
+const link = (t) => `${location.origin}/c.html?t=${t}`;
+const ago = (iso) => { const h = (Date.now() - Date.parse(iso)) / 3600e3; return h < 1 ? Math.max(1, Math.round(h * 60)) + " min ago" : Math.round(h) + " h ago"; };
+const day = (d) => new Date(d + "T12:00:00").toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
+let data = null, prop = "All";
+function phoneIntl(p) { let d = String(p).replace(/[^\d+]/g, ""); if (d.startsWith("+")) return d; d = d.replace(/\D/g, ""); if (d.length === 10) d = "1" + d; return "+" + d; }
+const smsHref = (phone, body) => `sms:${phoneIntl(phone)}?&body=${encodeURIComponent(body)}`;
+const intakeText = (a) => `Hi ${first(a.client)}, it's ${data.studio.name}. You're in line for ${a.role} at ${a.property}. Tap the link and type your name to hold your spot: ${link(a.token)}`;
+const offerText = (o) => `Offer from ${data.studio.name}: ${o.role} at ${o.property}, starts ${day(o.start)}, ${o.pay}. Tap the link and type your name to accept by ${new Date(o.cutoff).toLocaleString("en-US", { weekday: "short", hour: "numeric", minute: "2-digit" })}: ${link(o.token)}`;
+function say(el, t, ok = true) { $(el).innerHTML = t ? `<div class="msg ${ok ? "ok" : "err"}" role="status">${t}</div>` : ""; }
+async function api(body) {
+  const r = await fetch(body ? "/api/confirm" : "/api/confirm?s=" + encodeURIComponent(S), { method: body ? "POST" : "GET", headers: { "content-type": "application/json" }, body: body ? JSON.stringify({ s: S, ...body }) : undefined });
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(j.error || "Request failed");
+  return j;
+}
+// Chase order: confirmed with no offer yet (newest reply first), then pending (oldest text first), then the rest.
+function rows() {
+  const intakes = data.appts.filter((a) => a.kind === "intake" && (prop === "All" || a.property === prop));
+  const offers = data.appts.filter((a) => a.kind === "offer");
+  const offerFor = (c) => offers.filter((o) => o.candidate === c.id).sort((x, y) => Date.parse(y.created) - Date.parse(x.created))[0];
+  return intakes.map((c) => ({ c, o: offerFor(c) })).sort((x, y) => {
+    const r = (z) => z.o ? (z.o.status === "PENDING" ? 1 : z.o.status === "CONFIRMED" ? 4 : 3) : z.c.status === "CONFIRMED" ? 0 : z.c.status === "PENDING" ? 2 : 5;
+    const d = r(x) - r(y); if (d) return d;
+    if (!x.o && x.c.status === "CONFIRMED") return Date.parse(y.c.acceptedAt) - Date.parse(x.c.acceptedAt);
+    return Date.parse(x.c.created) - Date.parse(y.c.created);
+  });
+}
+function render() {
+  const st = data.studio;
+  $("title").textContent = st.name + " · seasonal hiring";
+  const props = st.properties || [...new Set(data.appts.map((a) => a.property))];
+  $("props").innerHTML = ["All", ...props].map((p) => `<button type="button" class="${p === prop ? "on" : ""}" data-p="${esc(p)}">${esc(p)}</button>`).join("");
+  $("qProp").innerHTML = props.map((p) => `<option${p === prop ? " selected" : ""}>${esc(p)}</option>`).join("");
+  $("qRole").innerHTML = (st.roles || []).map((r) => `<option>${esc(r)}</option>`).join("");
+  $("auto").checked = !!st.autoAdvance;
+  const rs = rows();
+  const n = (f) => rs.filter(f).length;
+  $("summary").innerHTML = `<div class="sum"><b>${esc(prop === "All" ? "All properties" : prop)}:</b> ${n((z) => z.c.status === "CONFIRMED" && !z.o)} ready for an offer · ${n((z) => z.c.status === "PENDING")} waiting to confirm · ${n((z) => z.o && z.o.status === "PENDING")} offers out · <b style="color:#3ddc97">${n((z) => z.o && z.o.status === "CONFIRMED")} hired</b> · ${n((z) => z.c.status === "LAPSED")} cooled off</div>`;
+  const autos = data.appts.filter((o) => o.kind === "offer" && o.autoFrom && (prop === "All" || o.property === prop));
+  $("note").innerHTML = autos.length ? autos.map((o) => `<div class="auto">↪ Offer auto-advanced from ${esc(o.autoFrom)} to <b>${esc(o.client)}</b> (${esc(o.role)}, ${esc(o.property)}). <a href="${esc(smsHref(o.phone, offerText(o)))}">Send them the text</a></div>`).join("") : "";
+  $("list").innerHTML = rs.map(({ c, o }) => {
+    const b = [];
+    let badge = c.status, detail = "";
+    if (o) {
+      badge = o.status === "CONFIRMED" ? "HIRED" : o.status === "PENDING" ? "OFFER" : "OFFER " + o.status;
+      detail = o.status === "CONFIRMED" ? `Accepted offer: starts ${esc(day(o.start))}, ${esc(o.pay)} · by "${esc(o.acceptedName)}" ${esc(ago(o.acceptedAt))}` : o.status === "PENDING" ? `Offer out ${esc(ago(o.created))}: starts ${esc(day(o.start))}, ${esc(o.pay)}` : `Offer ${esc(o.status.toLowerCase())}${o.advancedTo ? " → went to " + esc(o.advancedTo) : ""}`;
+      if (o.status === "PENDING") b.push(`<a class="btn" href="${esc(smsHref(o.phone, offerText(o)))}">Text the offer</a>`);
+    } else if (c.status === "CONFIRMED") {
+      detail = `Confirmed ${esc(ago(c.acceptedAt))} · texted ${esc(ago(c.created))}`;
+      b.push(`<button class="btn" type="button" data-offer="${c.id}">Send offer</button>`);
+    } else if (c.status === "PENDING") {
+      detail = `Texted ${esc(ago(c.created))}, no reply yet`;
+      b.push(c.reminderDue ? `<a class="btn" data-remind="${c.id}" href="${esc(smsHref(c.phone, intakeText(c)))}">Send reminder</a>` : `<a class="btn btn-ghost" href="${esc(smsHref(c.phone, intakeText(c)))}">Text again</a>`);
+    } else detail = c.status === "LAPSED" ? `Didn't confirm in time (texted ${esc(ago(c.created))})` : "";
+    const form = !o && c.status === "CONFIRMED" ? `<form class="row" data-form="${c.id}" hidden style="margin-top:8px"><label>Start date<input type="date" name="start" required></label><label>Pay<input name="pay" required placeholder="$22/hr"></label><button class="btn" type="submit" style="flex:0 1 auto">Create offer</button></form>` : "";
+    return `<div class="cand"><h3><span>${esc(c.client)} <span class="muted" style="font-weight:400">· ${esc(c.role)} · ${esc(c.property)}</span></span><span class="badge b-${badge.split(" ")[0]}">${esc(badge)}</span></h3><div class="meta">${esc(c.phone)} · ${detail}</div><div class="btns">${b.join("")}</div>${form}<div id="m-${c.id}"></div></div>`;
+  }).join("") || '<p class="muted">No candidates yet. Add one above.</p>';
+}
+async function load() { try { data = await api(); render(); } catch (e) { say("note", esc(e.message), false); } }
+document.addEventListener("click", async (e) => {
+  const d = e.target.dataset;
+  if (d.p) { prop = d.p; return render(); }
+  if (d.offer) { const f = document.querySelector(`[data-form="${d.offer}"]`); f.hidden = !f.hidden; const s = f.querySelector("[name=start]"); if (!s.value) s.value = new Date(Date.now() + 10 * 86400e3).toISOString().slice(0, 10); return; }
+  if (d.remind) api({ action: "reminded", id: d.remind }).then(load).catch(() => {});
+});
+document.addEventListener("submit", async (e) => {
+  const id = e.target.dataset.form; if (!id) return;
+  e.preventDefault();
+  const f = Object.fromEntries(new FormData(e.target));
+  try { const j = await api({ action: "offer", candidate: id, ...f }); await load(); say("m-" + id, `Offer created. <a class="btn" href="${esc(smsHref(j.appt.phone, offerText(j.appt)))}">Text the offer now</a>`); }
+  catch (err) { say("m-" + id, esc(err.message), false); }
+});
+$("quick").onsubmit = async (e) => {
+  e.preventDefault();
+  const f = Object.fromEntries(new FormData(e.target));
+  try { const j = await api({ action: "intake", ...f }); e.target.querySelector("[name=client]").value = ""; e.target.querySelector("[name=phone]").value = ""; await load(); say("qMsg", `${esc(f.client)} added. <a class="btn" href="${esc(smsHref(j.appt.phone, intakeText(j.appt)))}">Send the text now</a> before they leave the table.`); }
+  catch (err) { say("qMsg", esc(err.message), false); }
+};
+$("auto").onchange = async () => {
+  try { await api({ action: "studio", ...data.studio, autoAdvance: $("auto").checked }); await load(); say("note", $("auto").checked ? "Auto-advance on: lapsed offers go to the next confirmed candidate." : "Auto-advance off: lapsed offers wait for you."); }
+  catch (err) { say("note", esc(err.message), false); }
+};
+load();
+setInterval(() => { if (!document.activeElement || !document.activeElement.closest("form")) load(); }, 15000);
+</script></body></html>
