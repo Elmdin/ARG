@@ -13,6 +13,7 @@
     if (r.ok) { d = (await r.json()).deals; src = "all devices (shared storage)"; }
   } catch (_) {}
   if (src !== "all devices (shared storage)") { try { d = JSON.parse(localStorage.getItem("deals") || "[]"); } catch (_) {} }
+  d = d.filter(x => x.kind === "loi" || x.kind === "preorder");
   const lois = d.filter(x => x.kind === "loi"), pre = d.filter(x => x.kind === "preorder");
   document.getElementById("sum").textContent = `${lois.length} LOIs · ${pre.length} pre-orders`;
   document.getElementById("src").textContent = "Source: " + src;
