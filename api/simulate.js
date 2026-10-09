@@ -57,14 +57,16 @@ module.exports = async (req, res) => {
   const t0 = Date.now();
   const panel = await Promise.all(
     PERSONAS.map(async (p) => {
-      let v = null;
+      let v = null, raw = "";
       if (llm.enabled) {
         const prompt = `You are ${p.name}, ${p.role}: ${p.stance}.\n\nThe quote you received:\n${summary}`;
-        v = llm.json(await llm.complete(SYSTEM, prompt, 300));
+        raw = await llm.complete(SYSTEM, prompt, 400);
+        v = llm.json(raw);
       }
       const live = Boolean(v && Number(v.walkaway_price) > 0);
       if (!live) v = fallback(p, total);
-      return { ...p, ...v, walkaway_price: Math.round(Number(v.walkaway_price)), live };
+      if (!live && llm.enabled) console.error("simulate fallback", p.id, llm.lastError || "", raw.slice(0, 200));
+      return { ...p, ...v, walkaway_price: Math.round(Number(v.walkaway_price)), live, ...(live ? {} : { why: (llm.lastError || raw.slice(0, 160) || "empty").slice(0, 200) }) };
     })
   );
 
