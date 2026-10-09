@@ -367,10 +367,12 @@
       const url = location.origin + "/app.html#q=" + encodeURIComponent(encode(data));
       $("#share-url").value = url;
       $("#share-box").hidden = false;
-      let ok = false;
-      try { await navigator.clipboard.writeText(url); ok = true; } catch (_) {}
-      $("#share-msg").textContent = ok ? "Copied to clipboard. Send it to your customer." : "Select and copy the link above.";
+      $("#share-msg").textContent = "Link ready. Copy it and send it to your customer.";
       $("#share-url").select();
+      try {
+        await Promise.race([navigator.clipboard.writeText(url), new Promise((_, rej) => setTimeout(rej, 1500))]);
+        $("#share-msg").textContent = "Copied to clipboard. Send it to your customer.";
+      } catch (_) {}
     };
 
     // Opened from a share link: show the customer-facing quote only.
