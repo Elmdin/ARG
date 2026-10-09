@@ -50,7 +50,7 @@
     #proposal .meta { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 12px; color: #444; }
     @media print {
       body { background: #fff; color: #111; }
-      .nav, .app, .foot, #quote-out .actions { display: none !important; }
+      .nav, .app, .foot, #quote-out .actions, #gen-warn, #share-box { display: none !important; }
       #quote-out { display: block !important; padding: 0 !important; }
       #proposal { border: 0 !important; }
     }
@@ -132,6 +132,15 @@
         <div id="stagesum" style="display:grid;gap:2px;justify-items:end"></div>
       </div>
 
+      <div id="margin-box" hidden class="row" style="margin-top:10px;align-items:center">
+        <label style="flex:0 1 140px">Target margin %<input id="target" type="number" min="0" max="95" step="1" value="25" aria-label="Target margin percent" /></label>
+        <div id="margin-read" style="flex:1 1 200px;padding-bottom:8px"></div>
+      </div>
+      <div id="missed" hidden role="region" aria-label="Missed anything?" style="margin-top:12px;border:1px solid #6b5313;background:#2a2312;border-radius:10px;padding:12px">
+        <b style="color:#f5c451">⚠ Missed anything?</b> <span class="muted" style="font-size:.8rem">(internal check, never on the customer's quote)</span>
+        <ul id="missed-list" style="margin:8px 0 0;padding-left:18px"></ul>
+      </div>
+      <div id="covered" class="muted" style="font-size:.8rem;margin-top:6px"></div>
       <p id="msg" role="status" aria-live="polite" style="color:#f5c451;min-height:1.2em;margin:8px 0 0"></p>
       <div class="actions">
         <button class="btn" id="generate" type="button">📄 Generate quote</button>
@@ -147,6 +156,7 @@
   </main>
 
   <section class="wrap" id="quote-out" hidden style="padding:0 16px 40px">
+    <div id="gen-warn" hidden role="alert" style="margin-bottom:10px;border:1px solid #6b5313;background:#2a2312;color:#f5e3b0;border-radius:10px;padding:10px 12px;font-size:.9rem"></div>
     <div class="card" id="proposal" style="background:#fff;color:#111;padding:32px"></div>
     <div class="actions">
       <button class="btn btn-ghost" id="print" type="button">🖨️ Print / save PDF</button>
@@ -174,7 +184,12 @@
       "IT / software": { seller: "BrightOps IT", client: "Harbor Logistics", tax: 8.5, items: [["Onboarding & setup", 1, 3500], ["User licenses (per seat / yr)", 45, 240], ["Data migration", 1, 2200], ["Premium support (per month)", 12, 400]] },
       "Events / catering": { seller: "Golden Fork Events", client: "Lumen Labs", tax: 8.5, items: [["Dinner, 3 courses (per guest)", 120, 68], ["Open bar, 3 hours (per guest)", 120, 32], ["Event staff (per person)", 10, 280], ["Venue styling & rentals", 1, 2600]] },
       "Cleaning / home services": { seller: "Sparkle Pro", client: "Maple Office Park", tax: 0, items: [["Office cleaning visit", 12, 340], ["Deep clean (quarterly)", 1, 1200], ["Window washing", 2, 450], ["Supplies & consumables", 12, 45]] },
-      "Roofing / solar (NZ)": { seller: "Kauri Ridge Roofing & Solar", client: "", tax: 15, currency: "NZD", incl: true, method: "Direct debit", stages: [[30, "Deposit"], [60, "On installation"], [10, "On grid connection"]], items: [["6.6 kW solar system (16 × 410 W panels)", 1, 9800], ["5 kW hybrid inverter", 1, 3200], ["Racking & roof fixings", 1, 1100], ["Installation labour (hours)", 16, 95], ["Grid connection & compliance certificate", 1, 650]] },
+      "Roofing / solar (NZ)": { seller: "Kauri Ridge Roofing & Solar", client: "", tax: 15, currency: "NZD", incl: true, method: "Direct debit", stages: [[30, "Deposit"], [60, "On installation"], [10, "On grid connection"]],
+        checklist: [["Scaffolding / edge protection", 1, 1200, "scaffold|edge protection|safety"], ["Electrical certificate of compliance", 1, 250, "certificate|compliance|coc"], ["Monitoring / app setup", 1, 150, "monitor|app"], ["Travel", 1, 120, "travel"]], items: [["6.6 kW solar system (16 × 410 W panels)", 1, 9800], ["5 kW hybrid inverter", 1, 3200], ["Racking & roof fixings", 1, 1100], ["Installation labour (hours)", 16, 95], ["Grid connection & compliance certificate", 1, 650]] },
+      "Landscape / hardscape": { seller: "Brekke Brothers Landscape & Stone", client: "", tax: 7, method: "Paper check", stages: [[30, "Deposit"], [70, "On completion"]], items: [["Pavers, 12×12 concrete (sq ft)", 450, 6.5], ["Base gravel & sand (tons)", 14, 48], ["Retaining wall block (linear ft)", 40, 38], ["Sod (sq ft)", 800, 0.95], ["Labor (crew hours)", 48, 65], ["Skid-steer rental (day)", 2, 375]],
+        checklist: [["Disposal / haul-off (load)", 2, 425, "disposal|haul|dump|removal"], ["Extra pavers waste allowance 10% (sq ft)", 45, 6.5, "waste|allowance|extra paver|overage"], ["Extra skid-steer day (contingency)", 1, 375, "extra skid|skid-steer day (contingency)|contingency"], ["Delivery / freight", 1, 250, "deliver|freight|trucking"], ["Edging / restraint (linear ft)", 90, 4.25, "edging|restraint"], ["Permits / utility locate", 1, 150, "permit|locate|811"]] },
+      "Electrical (AU)": { seller: "Tallowwood Electrical", client: "", tax: 10, currency: "AUD", incl: false, method: "Card", items: [["Switchboard upgrade (incl. RCBOs)", 1, 2400], ["Power points, double (supply + install)", 18, 95], ["LED downlights (supply + install)", 24, 68], ["Cabling & conduit (m)", 220, 4.8], ["Labour (hours)", 26, 98]],
+        checklist: [["Certificate of Electrical Safety / compliance", 1, 180, "certificate|compliance|ces|ccew|permit"], ["Travel / call-out", 1, 120, "travel|call-out|callout"], ["Small resi items (clips, junction boxes, glands)", 1, 160, "small|clips|junction|sundries|consumables"], ["Test & tag / commissioning", 1, 140, "test|commission"], ["Waste removal", 1, 90, "waste|rubbish|disposal"], ["Patching / make-good", 1, 220, "patch|make-good|make good"]] },
       "Trades / contractor": { seller: "Ridgeline Builders", client: "The Patel Residence", tax: 7.25, items: [["Materials: framing & drywall", 1, 6400], ["Labor (hours)", 120, 85], ["Electrical subcontract", 1, 3200], ["Permits & inspection", 1, 900], ["Waste removal", 1, 650]] },
     };
     let industry = "Agency / consulting";
@@ -182,6 +197,39 @@
 
     const r2 = (n) => Math.round(n * 100) / 100;
     let stages = [];
+    let checklist = [], dismissed = new Set();
+    const covered = (c) => c[3].split("|").some((kw) => items.some((i) => (i.desc || "").toLowerCase().includes(kw.toLowerCase())));
+    function issues() {
+      const out = [];
+      checklist.forEach((c, k) => { if (!covered(c) && !dismissed.has(k)) out.push({ kind: "missing", k, text: `Missing: <b>${esc(c[0])}</b>`, }); });
+      items.forEach((i, k) => {
+        if (!i.desc.trim() && !i.price) return;
+        if (!i.qty) out.push({ kind: "line", text: `Line ${k + 1} (${esc(i.desc || "no description")}) has quantity 0` });
+        if (!i.price) out.push({ kind: "line", text: `Line ${k + 1} (${esc(i.desc || "no description")}) has unit price 0` });
+      });
+      if (!(Number($("#tax").value) > 0)) out.push({ kind: "tax", text: "Tax / GST is 0%. Is that right for this job?" });
+      const m = margin();
+      if (m && m.pct < m.target) out.push({ kind: "margin", text: `Margin ${m.pct.toFixed(1)}% is below your ${m.target}% target. Underbid risk of about ${money(m.shortfall)}.` });
+      return out;
+    }
+    function margin() {
+      const costed = items.filter((i) => i.cost > 0);
+      if (!costed.length) return null;
+      const f = 1 - (Number($("#discount").value) || 0) / 100;
+      const rev = costed.reduce((a, i) => a + i.qty * i.price * f, 0), cost = costed.reduce((a, i) => a + i.qty * i.cost, 0);
+      const pct = rev ? (rev - cost) / rev * 100 : 0, target = Number($("#target").value) || 0;
+      return { pct, target, rev, cost, shortfall: Math.max(0, cost / (1 - target / 100) - rev), uncosted: items.length - costed.length };
+    }
+    function renderChecks() {
+      const list = issues();
+      $("#missed").hidden = !list.length;
+      $("#missed-list").innerHTML = list.map((x) => `<li style="margin:4px 0">${x.text}${x.kind === "missing" ? ` <button class="chip" type="button" data-addc="${x.k}" aria-label="Add ${esc(checklist[x.k][0])}">+ Add line</button> <button class="chip" type="button" data-skipc="${x.k}" aria-label="Not needed: ${esc(checklist[x.k][0])}">Not needed</button>` : ""}</li>`).join("");
+      const ok = checklist.filter((c) => covered(c)).map((c) => c[0]);
+      $("#covered").textContent = checklist.length ? `Checklist: ${ok.length}/${checklist.length} covered${ok.length ? ` (✓ ${ok.join(", ")})` : ""}` : "";
+      const m = margin();
+      $("#margin-box").hidden = !($("#adv").checked || m);
+      $("#margin-read").innerHTML = m ? `Margin <b style="color:${m.pct < m.target ? "#ff7a7a" : "#3ddc97"}">${m.pct.toFixed(1)}%</b> on costed lines (cost ${money(m.cost)}, price ${money(m.rev)})${m.uncosted ? ` · ${m.uncosted} line(s) without cost` : ""}` : `<span class="muted">Enter costs to see your margin.</span>`;
+    }
     function stageAmounts(total, list) {
       // Each stage = total × %; the last stage absorbs cent rounding so stages sum exactly to the total.
       let used = 0;
@@ -222,6 +270,7 @@
       sa.forEach((st, k) => { const el = document.querySelector(`[data-samt="${k}"]`); if (el) el.textContent = money(st.amount); });
       $("#stagesum").innerHTML = sa.map((st) => `<div style="display:flex;gap:24px"><span class="muted">${esc(st.label || "Stage")} (${st.pct}%)</span><span>${money(st.amount)}</span></div>`).join("");
       const pctSum = stages.reduce((a, b) => a + (Number(b.pct) || 0), 0);
+      renderChecks();
       $("#stage-msg").textContent = stages.length && Math.abs(pctSum - 100) > 0.001 ? `Stages add up to ${pctSum}%. They should total 100%.` : "";
       document.querySelectorAll("[data-amt]").forEach((el) => { const i = items[el.dataset.amt]; if (i) el.textContent = money(i.qty * i.price); });
     }
@@ -245,6 +294,7 @@
       $("#seller").value = t.seller; $("#client").value = t.client; $("#tax").value = t.tax; $("#discount").value = 0;
       $("#cur").value = t.currency || "USD"; $("#incl").value = t.incl ? "1" : "0";
       if (t.method) $("#pmethod").value = t.method;
+      checklist = t.checklist || []; dismissed = new Set();
       stages = (t.stages || []).map(([pct, label]) => ({ pct, label })); renderStages();
       document.querySelectorAll(".chip[data-t]").forEach((c) => c.classList.toggle("on", c.dataset.t === name));
       render(); $("#room").innerHTML = '<p class="muted" style="margin-top:20px">Run <b>Test with AI buyers</b> to see who signs, who pushes back, and the best price.</p>';
@@ -256,7 +306,12 @@
       const k = e.target.dataset.k; if (k == null) return;
       const f = e.target.dataset.f, it = items[k];
       it[f] = f === "desc" || f === "section" ? e.target.value : Math.max(0, Number(e.target.value) || 0);
-      if ((f === "cost" || f === "markup") && it.cost > 0) {
+      if (f === "cost" && it.cost > 0 && (it.markup == null || it.markupAuto) && it.price > 0) {
+        // No markup typed yet: derive it from the current price instead of overwriting the price.
+        it.markup = r2((it.price / it.cost - 1) * 100); it.markupAuto = true;
+        const mi = document.querySelector(`#rows input[data-k="${k}"][data-f="markup"]`); if (mi) mi.value = it.markup;
+      } else if ((f === "cost" || f === "markup") && it.cost > 0) {
+        if (f === "markup") it.markupAuto = false;
         it.price = r2(it.cost * (1 + (it.markup || 0) / 100));
         const pi = document.querySelector(`#rows input[data-k="${k}"][data-f="price"]`); if (pi) pi.value = it.price;
       }
@@ -265,6 +320,12 @@
     $("#rows").addEventListener("click", (e) => { if (e.target.dataset.del != null) { items.splice(e.target.dataset.del, 1); render(); } });
     $("#add").onclick = () => { items.push({ desc: "", qty: 1, price: 0 }); render(); const ins = document.querySelectorAll('#rows input[data-f="desc"]'); ins[ins.length - 1].focus(); };
     $("#adv").addEventListener("change", render);
+    $("#target").addEventListener("input", renderChecks);
+    $("#missed").addEventListener("click", (e) => {
+      const a = e.target.dataset.addc, sk = e.target.dataset.skipc;
+      if (a != null) { const c = checklist[a]; items.push({ desc: c[0], qty: c[1], price: c[2] }); render(); }
+      if (sk != null) { dismissed.add(Number(sk)); renderChecks(); }
+    });
     $("#stages").addEventListener("input", (e) => {
       const k = e.target.dataset.s; if (k == null) return;
       stages[k][e.target.dataset.f] = e.target.dataset.f === "pct" ? Math.max(0, Number(e.target.value) || 0) : e.target.value; recalc();
@@ -409,6 +470,9 @@
       q.createdAt = new Date().toISOString();
       q.items = q.items.map((i) => ({ desc: i.desc, qty: i.qty, price: i.price, section: i.section || "" }));
       showQuote(q, false);
+      const list = issues();
+      $("#gen-warn").hidden = !list.length;
+      $("#gen-warn").innerHTML = list.length ? `<b>⚠ Before you send:</b> ${list.length} possible miss${list.length > 1 ? "es" : ""}: ${list.map((x) => x.text).join(" · ")} <span style="opacity:.7">(internal, not on the customer's copy)</span>` : "";
     };
     $("#print").onclick = () => window.print();
 
@@ -436,6 +500,7 @@
         document.querySelector("main.app").hidden = true;
         $("#share").hidden = true;
         $("#back").hidden = false;
+        $("#gen-warn").hidden = true;
         showQuote(q, true);
         document.title = `Quote ${q.no} · ${q.seller}`;
       } catch (_) { say("That share link is incomplete. Ask the sender for a new one."); }
