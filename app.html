@@ -6,8 +6,10 @@
   <title>Quotax · Quote builder</title>
   <link rel="stylesheet" href="styles.css" />
   <style>
+    [hidden] { display: none !important; }
     .app { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); gap: 20px; padding: 24px 0 48px; }
-    @media (max-width: 900px) { .app { grid-template-columns: 1fr; } }
+    @media (max-width: 900px) { .app { grid-template-columns: minmax(0, 1fr); } }
+    .app > * { min-width: 0; }
     .row { display: flex; gap: 10px; flex-wrap: wrap; align-items: end; }
     .row > label { flex: 1 1 140px; font-size: .85rem; color: var(--muted); }
     .chips { display: flex; gap: 8px; flex-wrap: wrap; margin: 10px 0 4px; }
@@ -80,8 +82,9 @@
         <label>Client<input id="client" value="Acme Dental" /></label>
       </div>
 
+      <label class="muted" style="display:flex;gap:8px;align-items:center;margin-top:12px;font-size:.85rem"><input type="checkbox" id="adv" style="width:auto;margin:0" /> Show sections and cost + markup (internal only, hidden on the customer's quote)</label>
       <div style="overflow-x:auto"><table class="items">
-        <thead><tr><th>Item</th><th>Qty</th><th>Unit $</th><th class="amt">Amount</th><th></th></tr></thead>
+        <thead id="thead"></thead>
         <tbody id="rows"></tbody>
       </table></div>
       <button class="chip" id="add" type="button" style="margin-top:8px" aria-label="Add line item">+ Add line item</button>
@@ -98,7 +101,15 @@
         <label>Payment terms<select id="terms">
           <option>Due on receipt</option><option>Net 15</option><option selected>Net 30</option><option>Net 45</option><option>Net 60</option><option>Net 90</option><option>Card on file, monthly</option><option>Quarterly upfront</option><option>Annual upfront</option>
         </select></label>
-        <label style="flex:2 1 220px">Notes<input id="notes" value="50% deposit, balance on delivery. Valid 30 days." /></label>
+        <label>Payment method<select id="pmethod">
+          <option>Card</option><option>ACH</option><option selected>Bank transfer</option><option>Paper check</option><option>Direct debit</option><option>Cash</option><option>Boleto</option><option>Pix</option><option>M-Pesa Paybill</option><option>Other</option>
+        </select></label>
+        <label>Payment details<input id="pdetails" placeholder="e.g. Acct 12345, Paybill 400200" /></label>
+      </div>
+      <div class="row" style="margin-top:10px">
+        <label>Deposit %<input id="deposit" type="number" min="0" max="100" step="1" value="0" /></label>
+        <label>Valid for (days)<input id="valid" type="number" min="1" max="365" step="1" value="30" /></label>
+        <label style="flex:2 1 220px">Notes<input id="notes" value="Thank you for your business." /></label>
       </div>
 
       <div class="totals">
@@ -106,6 +117,8 @@
         <div><span class="muted">Discount</span><span id="disc"></span></div>
         <div><span class="muted">Tax</span><span id="taxv"></span></div>
         <div class="grand"><span class="muted" style="font-size:1rem;font-weight:400">Total</span><span id="total"></span></div>
+        <div id="deprow" hidden><span class="muted">Deposit due</span><span id="depv"></span></div>
+        <div id="balrow" hidden><span class="muted">Balance due</span><span id="balv"></span></div>
       </div>
 
       <p id="msg" role="status" aria-live="polite" style="color:#f5c451;min-height:1.2em;margin:8px 0 0"></p>
@@ -124,7 +137,12 @@
 
   <section class="wrap" id="quote-out" hidden style="padding:0 16px 40px">
     <div class="card" id="proposal" style="background:#fff;color:#111;padding:32px"></div>
-    <div class="actions"><button class="btn btn-ghost" id="print" type="button">🖨️ Print / save PDF</button></div>
+    <div class="actions">
+      <button class="btn btn-ghost" id="print" type="button">🖨️ Print / save PDF</button>
+      <button class="btn btn-ghost" id="share" type="button">🔗 Copy share link</button>
+      <a class="btn btn-ghost" id="back" href="/app.html" hidden>Build your own quote</a>
+    </div>
+    <div id="share-box" hidden style="margin-top:8px"><label class="muted" style="font-size:.85rem">Share link (no login needed, opens this quote with the Accept section)<input id="share-url" readonly aria-label="Share link" /></label><p id="share-msg" class="muted" style="margin:4px 0 0"></p></div>
   </section>
   <footer class="wrap foot">Team <b>Quotax</b> · Quotax quote builder · <a href="/deals.html">Deals</a></footer>
 
@@ -150,26 +168,36 @@
     let industry = "Agency / consulting";
     let items = [];
 
+    const r2 = (n) => Math.round(n * 100) / 100;
+    function totalsFor(q) {
+      const sub = q.items.reduce((s, i) => s + i.qty * i.price, 0);
+      const d = sub * (q.discount || 0) / 100;
+      const rate = (q.tax || 0) / 100;
+      let t, total;
+      if (q.taxIncluded) { total = r2(sub - d); t = total - total / (1 + rate); }
+      else { t = (sub - d) * rate; total = r2(sub - d + t); }
+      const dep = r2(total * (q.deposit || 0) / 100);
+      return { sub, d, t, total, incl: !!q.taxIncluded, dep, bal: r2(total - dep) };
+    }
     function totals() {
-      const sub = items.reduce((s, i) => s + i.qty * i.price, 0);
-      const d = sub * (Number($("#discount").value) || 0) / 100;
-      const rate = (Number($("#tax").value) || 0) / 100;
-      if ($("#incl").value === "1") {
-        const gross = sub - d, t = gross - gross / (1 + rate);
-        return { sub, d, t, total: Math.round(gross * 100) / 100, incl: true };
-      }
-      const t = (sub - d) * rate;
-      return { sub, d, t, total: Math.round((sub - d + t) * 100) / 100, incl: false };
+      return totalsFor({ items, discount: Number($("#discount").value) || 0, tax: Number($("#tax").value) || 0, taxIncluded: $("#incl").value === "1", deposit: Number($("#deposit").value) || 0 });
     }
     function recalc() {
       const x = totals();
       $("#sub").textContent = money(x.sub); $("#disc").textContent = "−" + money(x.d);
       $("#taxv").textContent = (x.incl ? "incl. " : "") + money(x.t); $("#total").textContent = money(x.total);
+      $("#deprow").hidden = $("#balrow").hidden = !x.dep;
+      $("#depv").textContent = money(x.dep); $("#balv").textContent = money(x.bal);
       document.querySelectorAll("[data-amt]").forEach((el) => { const i = items[el.dataset.amt]; el.textContent = money(i.qty * i.price); });
     }
     function render() {
+      const adv = $("#adv").checked;
+      $("#thead").innerHTML = `<tr>${adv ? "<th>Section</th>" : ""}<th>Item</th>${adv ? "<th>Cost</th><th>Markup %</th>" : ""}<th>Qty</th><th>Unit price</th><th class="amt">Amount</th><th></th></tr>`;
       $("#rows").innerHTML = items.map((i, k) => `<tr>
+        ${adv ? `<td class="p"><input data-k="${k}" data-f="section" aria-label="Line ${k + 1} section" placeholder="e.g. Labour" value="${esc(i.section || "")}" /></td>` : ""}
         <td><input data-k="${k}" data-f="desc" name="item-${k + 1}-description" aria-label="Line ${k + 1} description" placeholder="Description" value="${esc(i.desc)}" /></td>
+        ${adv ? `<td class="p"><input data-k="${k}" data-f="cost" aria-label="Line ${k + 1} cost" type="number" min="0" step="any" value="${i.cost ?? ""}" /></td>
+        <td class="n"><input data-k="${k}" data-f="markup" aria-label="Line ${k + 1} markup percent" type="number" min="0" step="any" value="${i.markup ?? ""}" /></td>` : ""}
         <td class="n"><input data-k="${k}" data-f="qty" name="item-${k + 1}-quantity" aria-label="Line ${k + 1} quantity" type="number" min="0" step="any" value="${i.qty}" /></td>
         <td class="p"><input data-k="${k}" data-f="price" name="item-${k + 1}-unit-price" aria-label="Line ${k + 1} unit price" type="number" min="0" step="any" value="${i.price}" /></td>
         <td class="amt" data-amt="${k}"></td>
@@ -188,11 +216,18 @@
     $("#templates").addEventListener("click", (e) => { if (e.target.dataset.t) load(e.target.dataset.t); });
     $("#rows").addEventListener("input", (e) => {
       const k = e.target.dataset.k; if (k == null) return;
-      const f = e.target.dataset.f; items[k][f] = f === "desc" ? e.target.value : Math.max(0, Number(e.target.value) || 0); recalc();
+      const f = e.target.dataset.f, it = items[k];
+      it[f] = f === "desc" || f === "section" ? e.target.value : Math.max(0, Number(e.target.value) || 0);
+      if ((f === "cost" || f === "markup") && it.cost > 0) {
+        it.price = r2(it.cost * (1 + (it.markup || 0) / 100));
+        const pi = document.querySelector(`#rows input[data-k="${k}"][data-f="price"]`); if (pi) pi.value = it.price;
+      }
+      recalc();
     });
     $("#rows").addEventListener("click", (e) => { if (e.target.dataset.del != null) { items.splice(e.target.dataset.del, 1); render(); } });
     $("#add").onclick = () => { items.push({ desc: "", qty: 1, price: 0 }); render(); const ins = document.querySelectorAll('#rows input[data-f="desc"]'); ins[ins.length - 1].focus(); };
-    ["#discount", "#tax", "#cur", "#incl"].forEach((s) => $(s).addEventListener("input", () => { recalc(); document.querySelectorAll("[data-amt]").length && recalc(); }));
+    $("#adv").addEventListener("change", render);
+    ["#discount", "#tax", "#cur", "#incl", "#deposit"].forEach((s) => $(s).addEventListener("input", () => { recalc(); document.querySelectorAll("[data-amt]").length && recalc(); }));
 
     $("#draft").onclick = async () => {
       const job = $("#job").value.trim(); if (!job) return $("#job").focus();
@@ -212,7 +247,7 @@
 
     function quote() {
       const x = totals();
-      return { seller: $("#seller").value, client: $("#client").value, industry, items, discount: Number($("#discount").value) || 0, tax: Number($("#tax").value) || 0, taxIncluded: x.incl, currency: $("#cur").value, terms: $("#terms").value, notes: $("#notes").value, total: x.total };
+      return { seller: $("#seller").value, client: $("#client").value, industry, items, discount: Number($("#discount").value) || 0, tax: Number($("#tax").value) || 0, taxIncluded: x.incl, currency: $("#cur").value, terms: $("#terms").value, method: $("#pmethod").value, payDetails: $("#pdetails").value, deposit: Number($("#deposit").value) || 0, validDays: Number($("#valid").value) || 30, notes: $("#notes").value, total: x.total };
     }
 
     $("#simulate").onclick = async () => {
@@ -248,34 +283,45 @@
       b.disabled = false; b.textContent = "🎯 Test with AI buyers";
     };
 
-    let quoteNo = 0;
-    $("#generate").onclick = () => {
-      const q = quote(), x = totals();
-      if (!q.client.trim()) { say("Add a client name first."); return $("#client").focus(); }
-      if (!q.items.length) return say("Add at least one line item.");
-      say("");
-      quoteNo = quoteNo || 1000 + Math.floor(Math.random() * 9000);
-      const no = "Q-" + new Date().getFullYear() + "-" + quoteNo;
-      const date = new Date().toLocaleDateString(undefined, { year: "numeric", month: "long", day: "numeric" });
+    const fmtDate = (d) => d.toLocaleDateString(undefined, { year: "numeric", month: "long", day: "numeric" });
+    const todayISO = () => { const t = new Date(); return t.getFullYear() + "-" + String(t.getMonth() + 1).padStart(2, "0") + "-" + String(t.getDate()).padStart(2, "0"); };
+    let current = null;
+
+    function showQuote(q, shared) {
+      const x = totalsFor(q);
+      const groups = [];
+      q.items.forEach((i) => {
+        const name = (i.section || "").trim();
+        let g = groups.find((z) => z.name === name);
+        if (!g) groups.push((g = { name, items: [] }));
+        g.items.push(i);
+      });
+      const sectioned = groups.some((g) => g.name);
+      const row = (i) => `<tr><td>${esc(i.desc)}</td><td class="r">${i.qty}</td><td class="r">${money(i.price)}</td><td class="r">${money(i.qty * i.price)}</td></tr>`;
+      const body = sectioned
+        ? groups.map((g) => `<tr><td colspan="4" style="background:#f3f4f6;font-weight:700">${esc(g.name || "Other")}</td></tr>${g.items.map(row).join("")}<tr><td colspan="3" class="r" style="color:#555">${esc(g.name || "Other")} subtotal</td><td class="r" style="font-weight:700">${money(g.items.reduce((s, i) => s + i.qty * i.price, 0))}</td></tr>`).join("")
+        : q.items.map(row).join("");
+      const validUntil = new Date(q.createdAt); validUntil.setDate(validUntil.getDate() + (q.validDays || 30));
       $("#proposal").innerHTML = `
         <div class="meta"><div><h1 style="margin:0;color:#111">${esc(q.seller)}</h1><div>Quote for <b id="q-client">${esc(q.client)}</b></div></div>
-        <div style="text-align:right"><div><b>Quote #</b> <span id="q-number">${no}</span></div><div><b>Date</b> <span id="q-date">${date}</span></div><div><b>Currency</b> ${esc(q.currency)}</div></div></div>
+        <div style="text-align:right"><div><b>Quote #</b> <span id="q-number">${esc(q.no)}</span></div><div><b>Date</b> <span id="q-date">${esc(fmtDate(new Date(q.createdAt)))}</span></div><div><b>Valid until</b> <span id="q-valid">${esc(fmtDate(validUntil))}</span></div><div><b>Currency</b> ${esc(q.currency)}</div></div></div>
         <table><thead><tr><th>Description</th><th class="r">Qty</th><th class="r">Unit price</th><th class="r">Amount</th></tr></thead>
-        <tbody>${q.items.map((i) => `<tr><td>${esc(i.desc)}</td><td class="r">${i.qty}</td><td class="r">${money(i.price)}</td><td class="r">${money(i.qty * i.price)}</td></tr>`).join("")}</tbody></table>
+        <tbody>${body}</tbody></table>
         <table style="width:auto;margin-left:auto"><tbody>
           <tr><td>Subtotal</td><td class="r">${money(x.sub)}</td></tr>
           <tr><td>Discount (${q.discount}%)</td><td class="r">−${money(x.d)}</td></tr>
           <tr><td>Tax (${q.tax}%${x.incl ? ", included" : ""})</td><td class="r">${money(x.t)}</td></tr>
           <tr><td><b>Total</b></td><td class="r"><b id="q-total" style="font-size:1.3em">${money(x.total)}</b></td></tr>
+          ${x.dep ? `<tr><td>Deposit due (${q.deposit}%)</td><td class="r" id="q-deposit">${money(x.dep)}</td></tr><tr><td>Balance due</td><td class="r" id="q-balance">${money(x.bal)}</td></tr>` : ""}
         </tbody></table>
-        <p><b>Payment terms:</b> ${esc(q.terms)}<br><b>Notes:</b> ${esc(q.notes)}</p>
+        <p><b>Payment terms:</b> ${esc(q.terms)}<br><b>Payment method:</b> <span id="q-method">${esc(q.method)}</span>${q.payDetails ? ` (${esc(q.payDetails)})` : ""}<br><b>Notes:</b> ${esc(q.notes)}</p>
         <div id="accept-box" style="margin-top:28px;border:2px dashed #bbb;border-radius:10px;padding:16px">
           <p style="margin:0 0 4px"><b>Status:</b> <span id="q-status" style="font-weight:700;color:#b45309">PENDING ACCEPTANCE</span></p>
           <div id="accept-form">
             <p style="margin:6px 0 10px;color:#444">To accept this quote, enter your name and the date, then click <b>Accept quote</b>.</p>
             <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:end">
               <label style="flex:2 1 180px;color:#333;font-size:.9rem">Customer name<input id="acc-name" name="accepted-by" aria-label="Customer name (accepted by)" placeholder="Full name" style="background:#fff;color:#111;border:1px solid #bbb" /></label>
-              <label style="flex:1 1 140px;color:#333;font-size:.9rem">Date<input id="acc-date" name="accepted-date" type="date" aria-label="Acceptance date" value="${(() => { const t = new Date(); return t.getFullYear() + "-" + String(t.getMonth() + 1).padStart(2, "0") + "-" + String(t.getDate()).padStart(2, "0"); })()}" style="background:#fff;color:#111;border:1px solid #bbb" /></label>
+              <label style="flex:1 1 140px;color:#333;font-size:.9rem">Date<input id="acc-date" name="accepted-date" type="date" aria-label="Acceptance date" value="${todayISO()}" style="background:#fff;color:#111;border:1px solid #bbb" /></label>
               <button class="btn" id="accept-btn" type="button" style="background:#15803d">✔ Accept quote</button>
             </div>
             <p id="acc-msg" role="status" aria-live="polite" style="color:#b91c1c;margin:8px 0 0;min-height:1em"></p>
@@ -286,19 +332,61 @@
         const name = $("#acc-name").value.trim(), d = $("#acc-date").value;
         if (!name) { $("#acc-msg").textContent = "Enter the customer's name to accept."; return $("#acc-name").focus(); }
         if (!d) { $("#acc-msg").textContent = "Pick the acceptance date."; return $("#acc-date").focus(); }
-        const nice = new Date(d + "T12:00:00").toLocaleDateString(undefined, { year: "numeric", month: "long", day: "numeric" });
+        const nice = fmtDate(new Date(d + "T12:00:00"));
         $("#q-status").textContent = "ACCEPTED";
         $("#q-status").style.color = "#15803d";
-        $("#accept-form").outerHTML = `<div id="accepted-stamp" role="status" style="margin-top:10px;display:inline-block;border:3px solid #15803d;color:#15803d;border-radius:8px;padding:10px 18px;font-weight:800;letter-spacing:.04em;transform:rotate(-2deg)">✅ ACCEPTED by <span id="accepted-name">${esc(name)}</span> on <span id="accepted-date">${esc(nice)}</span><div style="font-weight:600;font-size:.8rem;letter-spacing:0;color:#166534">Quote ${no} · Total ${money(x.total)}</div></div>`;
+        $("#accept-form").outerHTML = `<div id="accepted-stamp" role="status" style="margin-top:10px;display:inline-block;border:3px solid #15803d;color:#15803d;border-radius:8px;padding:10px 18px;font-weight:800;letter-spacing:.04em;transform:rotate(-2deg)">✅ ACCEPTED by <span id="accepted-name">${esc(name)}</span> on <span id="accepted-date">${esc(nice)}</span><div style="font-weight:600;font-size:.8rem;letter-spacing:0;color:#166534">Quote ${esc(q.no)} · Total ${money(x.total)}</div></div>`;
         $("#accept-box").style.borderColor = "#15803d";
-        try { fetch("/api/loi", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ kind: "accepted", id: no, company: q.client, name, at: new Date().toISOString(), price: x.total }) }); } catch (_) {}
+        try { fetch("/api/loi", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ kind: "accepted", id: q.no, company: q.client, name, at: new Date().toISOString(), price: x.total }) }); } catch (_) {}
       };
+      current = q;
+      $("#share-box").hidden = true;
       $("#quote-out").hidden = false;
-      $("#quote-out").scrollIntoView({ behavior: "smooth" });
+      if (!shared) $("#quote-out").scrollIntoView({ behavior: "smooth" });
+    }
+
+    let quoteNo = 0;
+    $("#generate").onclick = () => {
+      const q = quote();
+      if (!q.client.trim()) { say("Add a client name first."); return $("#client").focus(); }
+      if (!q.items.length) return say("Add at least one line item.");
+      say("");
+      quoteNo = quoteNo || 1000 + Math.floor(Math.random() * 9000);
+      q.no = "Q-" + new Date().getFullYear() + "-" + quoteNo;
+      q.createdAt = new Date().toISOString();
+      q.items = q.items.map((i) => ({ desc: i.desc, qty: i.qty, price: i.price, section: i.section || "" }));
+      showQuote(q, false);
     };
     $("#print").onclick = () => window.print();
 
-    load(industry);
+    const encode = (o) => btoa(unescape(encodeURIComponent(JSON.stringify(o))));
+    const decode = (t) => JSON.parse(decodeURIComponent(escape(atob(t))));
+    $("#share").onclick = async () => {
+      if (!current) return;
+      const { industry: _i, total: _t, ...data } = current;
+      const url = location.origin + "/app.html#q=" + encodeURIComponent(encode(data));
+      $("#share-url").value = url;
+      $("#share-box").hidden = false;
+      let ok = false;
+      try { await navigator.clipboard.writeText(url); ok = true; } catch (_) {}
+      $("#share-msg").textContent = ok ? "Copied to clipboard. Send it to your customer." : "Select and copy the link above.";
+      $("#share-url").select();
+    };
+
+    // Opened from a share link: show the customer-facing quote only.
+    if (location.hash.startsWith("#q=")) {
+      try {
+        const q = decode(decodeURIComponent(location.hash.slice(3)));
+        $("#cur").value = q.currency || "USD";
+        document.querySelector("main.app").hidden = true;
+        $("#share").hidden = true;
+        $("#back").hidden = false;
+        showQuote(q, true);
+        document.title = `Quote ${q.no} · ${q.seller}`;
+      } catch (_) { say("That share link is incomplete. Ask the sender for a new one."); }
+    }
+
+    if (!location.hash.startsWith("#q=")) load(industry); else render();
   })();
   </script>
 </body>
