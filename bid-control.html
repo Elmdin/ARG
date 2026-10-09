@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Quotax Bid Control · One-page summary</title>
+  <link rel="icon" href="/favicon.svg" />
+  <style>
+    :root { --fg: #15151d; --muted: #555566; --line: #dcdce4; --red: #b91c1c; --bg: #ffffff; --card: #f6f6f9; }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--bg); color: var(--fg); font: 15px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+    main { max-width: 780px; margin: 0 auto; padding: 28px 16px 40px; }
+    h1 { font-size: 1.6rem; margin: 0 0 4px; line-height: 1.2; }
+    h2 { font-size: .8rem; text-transform: uppercase; letter-spacing: .08em; color: var(--red); margin: 18px 0 6px; }
+    p { margin: 0 0 8px; }
+    ul, ol { margin: 0 0 8px; padding-left: 20px; }
+    li { margin: 2px 0; }
+    .sub { color: var(--muted); margin-bottom: 14px; }
+    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    @media (max-width: 640px) { .grid { grid-template-columns: 1fr; } }
+    .box { background: var(--card); border: 1px solid var(--line); border-radius: 8px; padding: 10px 14px; }
+    table { width: 100%; border-collapse: collapse; font-size: .92rem; }
+    td, th { text-align: left; padding: 5px 6px; border-bottom: 1px solid var(--line); vertical-align: top; }
+    th { font-size: .75rem; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; }
+    .tag { display: inline-block; font-size: .72rem; font-weight: 700; border-radius: 4px; padding: 1px 6px; }
+    .live { background: #dcfce7; color: #14532d; }
+    .next { background: #fef3c7; color: #78350f; }
+    a { color: var(--red); }
+    .foot { color: var(--muted); font-size: .85rem; border-top: 1px solid var(--line); margin-top: 18px; padding-top: 10px; }
+    .noprint { margin-top: 14px; }
+    @media print { main { padding: 0; } .noprint { display: none; } body { font-size: 12.5px; } }
+  </style>
+</head>
+<body>
+<main>
+  <h1>Quotax Bid Control</h1>
+  <p class="sub">Stops thin-margin bids from going out without a named sign-off. One-page summary for internal routing.</p>
+
+  <h2>The problem</h2>
+  <p>Bids are built in a large spreadsheet that only one or two senior estimators fully understand. Margin gets shaved to win work, and nothing consistently flags a job that is too thin before it goes to the client. When a senior estimator retires, that judgement leaves with them.</p>
+
+  <h2>What it does</h2>
+  <div class="grid">
+    <div class="box"><b>1 · Floor per bid</b><br />The estimator or approver sets the margin floor on each bid, because the right floor depends on scope and risk.</div>
+    <div class="box"><b>2 · Thin-job flag</b><br />Internal cost and markup on every line. Below the floor, the bid is flagged with the dollar shortfall and the thin sections (e.g. framing &amp; drywall, finishes).</div>
+    <div class="box"><b>3 · Hold at send</b><br />A bid under its floor cannot be printed or shared. It is held until a second person, not the estimator, signs off with a name and a reason.</div>
+    <div class="box"><b>4 · Approval record</b><br />Every release is time-stamped with who approved it and why. Costs, margins and approvals never appear on the client's copy.</div>
+  </div>
+
+  <h2>Status</h2>
+  <table>
+    <tr><th>Capability</th><th>State</th></tr>
+    <tr><td>Itemized bid with sections, subtotals, cost + markup, totals that foot</td><td><span class="tag live">Live</span></td></tr>
+    <tr><td>Per-bid margin floor, thin-job flag, per-section margins, dollar shortfall</td><td><span class="tag live">Live</span></td></tr>
+    <tr><td>Hold at send with second sign-off and reason</td><td><span class="tag live">Live</span></td></tr>
+    <tr><td>Approver accounts (only named approvers can release), approval history report</td><td><span class="tag next">Next</span></td></tr>
+    <tr><td>Floor defaults by job type / risk band, set by the preconstruction lead</td><td><span class="tag next">Next</span></td></tr>
+  </table>
+  <p style="margin-top:8px">Try it: <a href="/app.html?t=interiors">arg-foundergame.vercel.app/app.html?t=interiors</a>. A sample fit-out bid at 17.3% margin against an 18% floor. Click <b>Generate quote</b> to see it held.</p>
+
+  <h2>What it is not</h2>
+  <p>No plan take-off, no BIM, no logins, no implementation project. Estimators open a web page and type their lines. It sits alongside your existing estimating, at the last step before a bid leaves the building.</p>
+
+  <h2>Suggested pilot (when there is an owner)</h2>
+  <ol>
+    <li><b>Owner:</b> one preconstruction lead who sets floors and acts as approver.</li>
+    <li><b>Scope:</b> 2 estimators run their next 10 live bids through Bid Control alongside the spreadsheet, for 30 days.</li>
+    <li><b>Measure:</b> how many bids were flagged thin, how many were released and why, and whether any thin bid would have gone out unnoticed.</li>
+    <li><b>Cost:</b> no charge for the pilot. Pricing is agreed only if the pilot shows it catches bids your current process misses.</li>
+  </ol>
+
+  <p class="foot">Contact: Imaan, Quotax. Reply to this thread when there is an owner and we will set up the pilot in a day.</p>
+  <p class="noprint"><button onclick="window.print()" style="font:inherit;padding:8px 14px;border-radius:8px;border:1px solid var(--line);background:var(--card);cursor:pointer">Print / save as PDF</button></p>
+</main>
+</body>
+</html>
