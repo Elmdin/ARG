@@ -506,7 +506,8 @@
     function quote() {
       const x = totals();
       const g = G();
-      const qi = live().map((i) => (i.pg && g ? { ...i, desc: `${i.desc} (${i.qty !== 1 ? i.qty + " × " : ""}${g} guests)`, qty: eq(i) } : i));
+      const anyOpt = items.some((i) => i.opt);
+      const qi = live().map((i) => anyOpt ? { ...i, section: i.opt ? "Selected extras" : (i.section || "Venue & catering package") } : i).map((i) => (i.pg && g ? { ...i, desc: `${i.desc} (${i.qty !== 1 ? i.qty + " × " : ""}${g} guests)`, qty: eq(i) } : i));
       return { seller: $("#seller").value, client: $("#client").value, industry, items: qi, guests: g, taxName: taxName(), discount: Number($("#discount").value) || 0, tax: Number($("#tax").value) || 0, taxIncluded: x.incl, currency: $("#cur").value, terms: $("#terms").value, method: $("#pmethod").value, payDetails: $("#pdetails").value, deposit: Number($("#deposit").value) || 0, stages: stages.map((st) => ({ label: st.label, pct: Number(st.pct) || 0 })), validDays: Number($("#valid").value) || 30, term: Math.max(0, Math.floor(Number($("#term").value) || 0)), mix: mixOn() && items.some(isMon), signatory, notes: $("#notes").value, brand: { logo, color: $("#bcolor").value, font: $("#bfont").value, intro: $("#intro").value.trim() }, total: x.total };
     }
 
