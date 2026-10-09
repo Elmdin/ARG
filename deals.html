@@ -1,0 +1,12 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Deals</title><link rel="stylesheet" href="styles.css"></head>
+<body><main class="wrap"><section><h2>Deals signed on this device</h2>
+<p id="sum" class="lead"></p><pre id="out" class="card out"></pre>
+<button class="btn btn-ghost" onclick="if(confirm('Clear?')){localStorage.removeItem('deals');location.reload()}">Clear</button>
+</section></main>
+<script>
+let d=[];try{d=JSON.parse(localStorage.getItem('deals')||'[]')}catch(_){}
+document.getElementById('sum').textContent=`${d.filter(x=>x.kind==='loi').length} LOIs · ${d.filter(x=>x.kind==='preorder').length} pre-orders`;
+document.getElementById('out').textContent=d.map(x=>`${x.at}  ${x.kind.toUpperCase()} #${x.id}  ${x.company||''}  ${x.plan||''} ${x.price||''} ${x.name||x.email||''}`).join('\n')||'None yet.';
+</script></body></html>

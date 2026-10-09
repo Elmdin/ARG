@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Loading…</title>
+  <link rel="stylesheet" href="styles.css" />
+  <script src="config.js"></script>
+</head>
+<body>
+  <header class="nav">
+    <div class="wrap nav-in">
+      <a class="brand" href="#" data-bind="name"></a>
+      <nav>
+        <a href="#demo">Demo</a>
+        <a href="#pricing">Pricing</a>
+        <a href="#loi" class="btn btn-sm" data-bind="cta.primary"></a>
+      </nav>
+    </div>
+  </header>
+
+  <main>
+    <section class="hero wrap">
+      <p class="eyebrow" data-bind="tagline"></p>
+      <h1 data-bind="headline"></h1>
+      <p class="lead" data-bind="subhead"></p>
+      <div class="actions">
+        <a href="#demo" class="btn">Try the live demo</a>
+        <a href="#loi" class="btn btn-ghost" data-bind="cta.primary"></a>
+      </div>
+      <div class="stats" id="stats"></div>
+    </section>
+
+    <section class="wrap grid4" id="features"></section>
+
+    <section class="wrap" id="demo">
+      <h2 data-bind="demo.title"></h2>
+      <form id="demo-form" class="card">
+        <textarea id="demo-input" rows="5" required></textarea>
+        <button class="btn" type="submit" data-bind="demo.button"></button>
+      </form>
+      <pre id="demo-out" class="card out" hidden></pre>
+    </section>
+
+    <section class="wrap why">
+      <div><h3>Who it's for</h3><p data-bind="customer"></p></div>
+      <div><h3>Why now</h3><p data-bind="whyNow"></p></div>
+    </section>
+
+    <section class="wrap" id="testimonials"></section>
+
+    <section class="wrap" id="pricing">
+      <h2>Pricing</h2>
+      <div class="grid3" id="plans"></div>
+    </section>
+
+    <section class="wrap" id="loi">
+      <h2>Letter of intent</h2>
+      <form id="loi-form" class="card form">
+        <label>Your name<input name="name" required /></label>
+        <label>Title<input name="title" required /></label>
+        <label>Company<input name="company" required /></label>
+        <label>Email<input name="email" type="email" required /></label>
+        <label>Plan<select name="plan" id="plan-select"></select></label>
+        <label>Seats / agents<input name="qty" type="number" min="1" value="1" /></label>
+        <p class="terms" id="loi-terms"></p>
+        <label class="check"><input type="checkbox" name="agree" required /> I agree, and sign below</label>
+        <label>Signature (type your full name)<input name="signature" required /></label>
+        <button class="btn" type="submit">Sign letter of intent</button>
+      </form>
+      <div id="loi-done" class="card done" hidden></div>
+    </section>
+
+    <section class="wrap" id="team">
+      <h2>Team</h2>
+      <div class="grid3" id="team-grid"></div>
+    </section>
+  </main>
+
+  <footer class="wrap foot"><span data-bind="name"></span> · <span id="year"></span></footer>
+
+  <dialog id="checkout">
+    <form method="dialog" id="checkout-form" class="form">
+      <h3>Pre-order <span id="co-plan"></span></h3>
+      <label>Email<input name="email" type="email" required /></label>
+      <label>Company<input name="company" required /></label>
+      <label>Card (test mode)<input value="4242 4242 4242 4242" /></label>
+      <div class="actions">
+        <button class="btn" value="pay">Pay <span id="co-price"></span></button>
+        <button class="btn btn-ghost" value="cancel" formnovalidate>Cancel</button>
+      </div>
+    </form>
+  </dialog>
+
+  <script src="app.js"></script>
+</body>
+</html>
