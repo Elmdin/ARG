@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Menu costing</title><link rel="icon" href="/favicon.svg" type="image/svg+xml"><link rel="stylesheet" href="styles.css">
+<style>
+  [hidden] { display: none !important; }
+  .mc input { min-height: 48px; font-size: 18px; }
+  .mc .btn { min-height: 48px; font-size: 1rem; }
+  .ing { display: grid; grid-template-columns: 1fr 120px; gap: 10px; align-items: center; border-top: 1px solid var(--line); padding: 8px 0; }
+  .ing b { font-size: 1.05rem; } .ing small { color: var(--muted); }
+  .pl { border-top: 1px solid var(--line); padding: 12px 0; }
+  .pl h3 { margin: 0; display: flex; justify-content: space-between; gap: 8px; flex-wrap: wrap; font-size: 1.05rem; }
+  .badge { font-weight: 800; border-radius: 999px; padding: 3px 10px; font-size: .85rem; white-space: nowrap; }
+  .red { background: #7f1d1d; color: #fff; } .green { background: #14532d; color: #bbf7d0; }
+  .nums { display: flex; gap: 14px; flex-wrap: wrap; color: var(--muted); margin: 6px 0; }
+  .nums b { color: var(--fg); }
+  .row { display: flex; gap: 10px; flex-wrap: wrap; align-items: end; } .row > * { flex: 1 1 140px; }
+  .msg { border-radius: 10px; padding: 10px 12px; margin: 8px 0; } .msg.ok { background: #12392b; color: #bff5dc; } .msg.err { background: #3d1717; color: #ffc4c4; }
+  .sum { font-size: 1.05rem; margin: 8px 0; }
+</style></head>
+<body><main class="wrap mc" style="padding:20px 16px 48px">
+<h2 style="margin-bottom:2px" id="title">Menu costing</h2>
+<p class="muted" style="margin:0">Ingredients at today's price → every platter's cost per head → margin against your floor. Change one price and every platter re-costs. Stores quote from this menu and never see costs.</p>
+<p class="sum" id="sum" role="status"></p>
+<div id="msg"></div>
+
+<section class="card" style="padding:16px;margin-top:12px">
+  <h3 style="margin-top:0">Platters <span class="muted" style="font-weight:400;font-size:.9rem">(cost per head, from ingredients)</span></h3>
+  <div class="row"><label style="flex:0 1 180px">Margin floor %<input id="floor" type="number" min="0" max="90" step="1" inputmode="decimal"></label></div>
+  <div id="platters"></div>
+</section>
+
+<section class="card" style="padding:16px;margin-top:12px">
+  <h3 style="margin-top:0">Ingredients <span class="muted" style="font-weight:400;font-size:.9rem">(today's price · type a new one and it saves)</span></h3>
+  <div class="row"><label>Input costs went up by %<input id="pct" type="number" step="1" inputmode="decimal" placeholder="e.g. 8"></label><button class="btn" id="bump" type="button">Apply to every ingredient</button></div>
+  <div id="ings"></div>
+</section>
+
+<p style="margin-top:16px"><a class="btn" id="quoteLink" href="#">Open the store quote screen →</a></p>
+</main>
+<script>
+const $ = (id) => document.getElementById(id);
+const M = (new URLSearchParams(location.search).get("m") || "wattlebrook").toLowerCase();
+const esc = (s) => String(s == null ? "" : s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+let menu = null;
+const money = (n) => "$" + Number(n).toFixed(2);
+function say(t, ok = true) { $("msg").innerHTML = t ? `<div class="msg ${ok ? "ok" : "err"}" role="status">${t}</div>` : ""; }
+async function api(body) {
+  const r = await fetch(body ? "/api/menu" : "/api/menu?m=" + encodeURIComponent(M), { method: body ? "POST" : "GET", headers: { "content-type": "application/json" }, body: body ? JSON.stringify({ m: M, ...body }) : undefined });
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(j.error || "Request failed");
+  return j;
+}
+function render() {
+  $("title").textContent = menu.name;
+  document.title = "Menu costing · " + menu.name;
+  $("floor").value = menu.floor;
+  const under = menu.platters.filter((p) => p.margin < menu.floor);
+  $("sum").innerHTML = under.length ? `<b style="color:#ff9a9a">${under.length} of ${menu.platters.length} platters are under your ${menu.floor}% floor</b> at today's ingredient prices.` : `<b style="color:#3ddc97">All ${menu.platters.length} platters are above your ${menu.floor}% floor.</b>`;
+  $("platters").innerHTML = menu.platters.map((p, k) => `<div class="pl"><h3><span>${esc(p.name)}</span><span class="badge ${p.margin < menu.floor ? "red" : "green"}">${p.margin < menu.floor ? "🚩 " : "✓ "}${p.margin.toFixed(1)}% margin</span></h3>
+    <div class="nums"><span>Cost/head <b>${money(p.cost)}</b></span><span>Price/head <b>${money(p.price)}</b>${p.priceSet ? ` <small>(set ${esc(p.priceSet)})</small>` : ""}</span>${p.margin < menu.floor ? `<span>Needs <b>${money(p.needPrice)}</b> to hit ${menu.floor}%</span>` : ""}</div>
+    <div class="muted" style="font-size:.85rem">${p.parts.map(([n, q]) => `${esc(n)} ${q}`).join(" · ")}</div>
+    ${p.margin < menu.floor ? `<button class="btn" type="button" data-fix="${k}" style="margin-top:8px">Set price to ${money(p.needPrice)}</button>` : ""}</div>`).join("");
+  $("ings").innerHTML = menu.ingredients.map((i, k) => `<div class="ing"><span><b>${esc(i.name)}</b> <small>per ${esc(i.unit)}</small></span><input type="number" step="0.01" min="0" inputmode="decimal" aria-label="${esc(i.name)} price per ${esc(i.unit)}" data-ing="${k}" value="${i.price}"></div>`).join("");
+  $("quoteLink").href = `/app.html?t=office&m=${encodeURIComponent(M)}`;
+}
+async function load() { try { menu = await api(); render(); } catch (e) { say(esc(e.message), false); } }
+document.addEventListener("change", async (e) => {
+  const t = e.target;
+  try {
+    if (t.dataset.ing != null) { const i = menu.ingredients[t.dataset.ing]; menu = await api({ action: "ingredient", name: i.name, price: t.value }); render(); say(`${esc(i.name)} saved at ${money(t.value)}. Every platter re-costed.`); }
+    if (t.id === "floor") { menu = await api({ action: "floor", floor: t.value }); render(); say(`Floor set to ${menu.floor}%.`); }
+  } catch (err) { say(esc(err.message), false); }
+});
+document.addEventListener("click", async (e) => {
+  const d = e.target.dataset;
+  try {
+    if (d.fix != null) { const p = menu.platters[d.fix]; menu = await api({ action: "price", name: p.name, price: p.needPrice }); render(); say(`${esc(p.name)} now ${money(p.needPrice)} per head. Stores quote the new price straight away.`); }
+    if (e.target.id === "bump") { const pct = $("pct").value; if (!pct) return say("Type the % rise first.", false); menu = await api({ action: "bump", pct }); render(); say(`Every ingredient up ${esc(pct)}%. Platters re-costed.`); $("pct").value = ""; }
+  } catch (err) { say(esc(err.message), false); }
+});
+load();
+</script></body></html>
