@@ -81,6 +81,7 @@
       <div class="row" style="margin-top:12px">
         <label>Your company<input id="seller" value="Northwind Studio" /></label>
         <label>Client<input id="client" value="Acme Dental" /></label>
+        <label style="flex:0 1 130px">Guests (catering)<input id="guests" type="number" min="0" step="1" value="0" aria-label="Guests" /></label>
       </div>
 
       <label class="muted" style="display:flex;gap:8px;align-items:center;margin-top:12px;font-size:.85rem"><input type="checkbox" id="adv" style="width:auto;margin:0" /> Show sections and cost + markup (internal only, hidden on the customer's quote)</label>
@@ -93,6 +94,7 @@
       <div class="row" style="margin-top:14px">
         <label>Discount %<input id="discount" type="number" min="0" max="100" step="0.5" value="0" /></label>
         <label>Tax %<input id="tax" type="number" min="0" max="50" step="0.25" value="8.5" /></label>
+        <label style="flex:0 1 120px">Tax name<input id="taxname" value="Tax" aria-label="Tax name" /></label>
         <label>Currency<select id="cur">
           <option>USD</option><option>CAD</option><option>AUD</option><option>NZD</option><option>EUR</option><option>GBP</option><option>PHP</option><option>KES</option><option>BRL</option><option>SGD</option><option>AED</option>
         </select></label>
@@ -125,7 +127,7 @@
       <div class="totals">
         <div><span class="muted">Subtotal</span><span id="sub"></span></div>
         <div><span class="muted">Discount</span><span id="disc"></span></div>
-        <div><span class="muted">Tax</span><span id="taxv"></span></div>
+        <div><span class="muted" id="taxlabel">Tax</span><span id="taxv"></span></div>
         <div class="grand"><span class="muted" style="font-size:1rem;font-weight:400">Total</span><span id="total"></span></div>
         <div id="deprow" hidden><span class="muted">Deposit due</span><span id="depv"></span></div>
         <div id="balrow" hidden><span class="muted">Balance due</span><span id="balv"></span></div>
@@ -133,7 +135,7 @@
       </div>
 
       <div id="margin-box" hidden class="row" style="margin-top:10px;align-items:center">
-        <label style="flex:0 1 140px">Target margin %<input id="target" type="number" min="0" max="95" step="1" value="25" aria-label="Target margin percent" /></label>
+        <label style="flex:0 1 160px">Margin floor % (this bid)<input id="target" type="number" min="0" max="95" step="1" value="25" aria-label="Margin floor percent" /></label>
         <div id="margin-read" style="flex:1 1 200px;padding-bottom:8px"></div>
       </div>
       <div id="missed" hidden role="region" aria-label="Missed anything?" style="margin-top:12px;border:1px solid #6b5313;background:#2a2312;border-radius:10px;padding:12px">
@@ -182,7 +184,15 @@
       "Blank quote": { seller: "Your Company", client: "", tax: 0, items: [["", 1, 0]] },
       "Agency / consulting": { seller: "Northwind Studio", client: "Acme Dental", tax: 0, items: [["Discovery & strategy workshop", 1, 2400], ["UX/UI design (hours)", 40, 125], ["Development (hours)", 60, 140], ["Booking system integration", 1, 1800], ["Monthly support retainer", 3, 650]] },
       "IT / software": { seller: "BrightOps IT", client: "Harbor Logistics", tax: 8.5, items: [["Onboarding & setup", 1, 3500], ["User licenses (per seat / yr)", 45, 240], ["Data migration", 1, 2200], ["Premium support (per month)", 12, 400]] },
-      "Events / catering": { seller: "Golden Fork Events", client: "Lumen Labs", tax: 8.5, items: [["Dinner, 3 courses (per guest)", 120, 68], ["Open bar, 3 hours (per guest)", 120, 32], ["Event staff (per person)", 10, 280], ["Venue styling & rentals", 1, 2600]] },
+      "Events / catering": { seller: "Golden Fork Events", client: "Lumen Labs", tax: 8.5, guests: 120, floor: 30, items: [["Dinner, 3 courses", 1, 68, { pg: true, cost: 31 }], ["Open bar, 3 hours", 1, 32, { pg: true, cost: 12 }], ["Event staff (per person)", 10, 280, { cost: 190 }], ["Venue styling & rentals", 1, 2600, { cost: 1700 }]],
+        checklist: [["Service charge / gratuity", 1, 0, "service charge|gratuity"], ["Rentals: linens, glassware", 1, 450, "linen|glass|rental"], ["Delivery & setup", 1, 300, "deliver|setup|set-up"], ["Late-night / overtime staff", 1, 0, "overtime|late"]] },
+      "Interiors / fit-out": { seller: "Plumbline Interiors", client: "", tax: 7, floor: 18, adv: true, items: [
+          ["Strip-out & disposal", 1, 6800, { section: "Demolition", cost: 5200 }],
+          ["Metal stud framing (lf)", 420, 38, { section: "Framing & drywall", cost: 30 }], ["Drywall hang & finish (sf)", 3800, 4.1, { section: "Framing & drywall", cost: 3.55 }],
+          ["Carpet tile (sy)", 520, 46, { section: "Finishes", cost: 39 }], ["Paint, 2 coats (sf)", 7600, 1.35, { section: "Finishes", cost: 1.05 }],
+          ["Doors, frames & hardware (ea)", 14, 1450, { section: "Doors & hardware", cost: 1180 }],
+          ["Supervision (weeks)", 6, 2400, { section: "General conditions", cost: 2100 }]],
+        checklist: [["Dumpsters / debris haul", 2, 650, "dumpster|debris|haul|disposal"], ["Permits & inspections", 1, 900, "permit|inspection"], ["After-hours work premium", 1, 1500, "after-hours|after hours|night"], ["Contingency (5%)", 1, 2500, "contingency"], ["Final clean", 1, 800, "clean"]] },
       "Cleaning / home services": { seller: "Sparkle Pro", client: "Maple Office Park", tax: 0, items: [["Office cleaning visit", 12, 340], ["Deep clean (quarterly)", 1, 1200], ["Window washing", 2, 450], ["Supplies & consumables", 12, 45]] },
       "Roofing / solar (NZ)": { seller: "Kauri Ridge Roofing & Solar", client: "", tax: 15, currency: "NZD", incl: true, method: "Direct debit", stages: [[30, "Deposit"], [60, "On installation"], [10, "On grid connection"]],
         checklist: [["Scaffolding / edge protection", 1, 1200, "scaffold|edge protection|safety"], ["Electrical certificate of compliance", 1, 250, "certificate|compliance|coc"], ["Monitoring / app setup", 1, 150, "monitor|app"], ["Travel", 1, 120, "travel"]], items: [["6.6 kW solar system (16 × 410 W panels)", 1, 9800], ["5 kW hybrid inverter", 1, 3200], ["Racking & roof fixings", 1, 1100], ["Installation labour (hours)", 16, 95], ["Grid connection & compliance certificate", 1, 650]] },
@@ -197,6 +207,12 @@
 
     const r2 = (n) => Math.round(n * 100) / 100;
     let stages = [];
+    const G = () => Math.max(0, Math.floor(Number($("#guests").value) || 0));
+    const eq = (i) => i.qty * (i.pg ? G() : 1);
+    const TAXNAMES = { NZD: "GST", AUD: "GST", SGD: "GST", CAD: "GST/HST", EUR: "VAT", GBP: "VAT", PHP: "VAT", KES: "VAT", AED: "VAT" };
+    let taxNameEdited = false;
+    const taxName = () => ($("#taxname").value || "Tax").trim();
+    function defaultTaxName() { if (!taxNameEdited) $("#taxname").value = TAXNAMES[$("#cur").value] || ($("#incl").value === "1" ? "GST/VAT" : "Tax"); }
     let checklist = [], dismissed = new Set();
     const covered = (c) => c[3].split("|").some((kw) => items.some((i) => (i.desc || "").toLowerCase().includes(kw.toLowerCase())));
     function issues() {
@@ -207,18 +223,22 @@
         if (!i.qty) out.push({ kind: "line", text: `Line ${k + 1} (${esc(i.desc || "no description")}) has quantity 0` });
         if (!i.price) out.push({ kind: "line", text: `Line ${k + 1} (${esc(i.desc || "no description")}) has unit price 0` });
       });
-      if (!(Number($("#tax").value) > 0)) out.push({ kind: "tax", text: "Tax / GST is 0%. Is that right for this job?" });
+      if (!(Number($("#tax").value) > 0)) out.push({ kind: "tax", text: `${esc(taxName())} is 0%. Is that right for this job?` });
       const m = margin();
-      if (m && m.pct < m.target) out.push({ kind: "margin", text: `Margin ${m.pct.toFixed(1)}% is below your ${m.target}% target. Underbid risk of about ${money(m.shortfall)}.` });
+      if (m && m.pct < m.target) out.push({ kind: "margin", text: `THIN JOB: margin ${m.pct.toFixed(1)}% is below your ${m.target}% floor. You'd need about ${money(m.shortfall)} more to reach it.` });
+      if (m) m.sections.filter((x) => x.name && x.pct < m.target).forEach((x) => out.push({ kind: "margin", text: `Thin section: ${esc(x.name)} at ${x.pct.toFixed(1)}% (floor ${m.target}%)` }));
       return out;
     }
     function margin() {
       const costed = items.filter((i) => i.cost > 0);
       if (!costed.length) return null;
       const f = 1 - (Number($("#discount").value) || 0) / 100;
-      const rev = costed.reduce((a, i) => a + i.qty * i.price * f, 0), cost = costed.reduce((a, i) => a + i.qty * i.cost, 0);
+      const rev = costed.reduce((a, i) => a + eq(i) * i.price * f, 0), cost = costed.reduce((a, i) => a + eq(i) * i.cost, 0);
       const pct = rev ? (rev - cost) / rev * 100 : 0, target = Number($("#target").value) || 0;
-      return { pct, target, rev, cost, shortfall: Math.max(0, cost / (1 - target / 100) - rev), uncosted: items.length - costed.length };
+      const by = {};
+      costed.forEach((i) => { const n = (i.section || "").trim(); by[n] = by[n] || { name: n, rev: 0, cost: 0 }; by[n].rev += eq(i) * i.price * f; by[n].cost += eq(i) * i.cost; });
+      const sections = Object.values(by).map((x) => ({ ...x, pct: x.rev ? (x.rev - x.cost) / x.rev * 100 : 0 }));
+      return { pct, target, rev, cost, sections, shortfall: Math.max(0, cost / (1 - target / 100) - rev), uncosted: items.length - costed.length };
     }
     function renderChecks() {
       const list = issues();
@@ -228,7 +248,8 @@
       $("#covered").textContent = checklist.length ? `Checklist: ${ok.length}/${checklist.length} covered${ok.length ? ` (✓ ${ok.join(", ")})` : ""}` : "";
       const m = margin();
       $("#margin-box").hidden = !($("#adv").checked || m);
-      $("#margin-read").innerHTML = m ? `Margin <b style="color:${m.pct < m.target ? "#ff7a7a" : "#3ddc97"}">${m.pct.toFixed(1)}%</b> on costed lines (cost ${money(m.cost)}, price ${money(m.rev)})${m.uncosted ? ` · ${m.uncosted} line(s) without cost` : ""}` : `<span class="muted">Enter costs to see your margin.</span>`;
+      $("#margin-read").innerHTML = m ? `${m.pct < m.target ? `<span id="thin-flag" role="alert" style="display:inline-block;background:#7f1d1d;color:#fff;font-weight:800;border-radius:6px;padding:2px 8px;margin-right:6px">🚩 THIN JOB</span>` : `<span id="ok-flag" style="display:inline-block;background:#14532d;color:#bbf7d0;font-weight:700;border-radius:6px;padding:2px 8px;margin-right:6px">✓ Above floor</span>`}Margin <b id="margin-pct" style="color:${m.pct < m.target ? "#ff7a7a" : "#3ddc97"}">${m.pct.toFixed(1)}%</b> (cost ${money(m.cost)}, price ${money(m.rev)})${m.uncosted ? ` · ${m.uncosted} line(s) without cost` : ""}
+        ${m.sections.some((x) => x.name) ? `<div style="margin-top:6px;display:flex;flex-wrap:wrap;gap:6px">${m.sections.map((x) => `<span style="font-size:.8rem;border:1px solid ${x.pct < m.target ? "#b91c1c" : "#2a2a3a"};border-radius:999px;padding:2px 8px;color:${x.pct < m.target ? "#ff9a9a" : "inherit"}">${esc(x.name || "Other")}: ${x.pct.toFixed(1)}%</span>`).join("")}</div>` : ""}` : `<span class="muted">Enter costs to see your margin.</span>`;
     }
     function stageAmounts(total, list) {
       // Each stage = total × %; the last stage absorbs cent rounding so stages sum exactly to the total.
@@ -258,12 +279,13 @@
       return { sub, d, t, total, incl: !!q.taxIncluded, dep, bal: r2(total - dep) };
     }
     function totals() {
-      return totalsFor({ items, discount: Number($("#discount").value) || 0, tax: Number($("#tax").value) || 0, taxIncluded: $("#incl").value === "1", deposit: Number($("#deposit").value) || 0 });
+      return totalsFor({ items: items.map((i) => ({ ...i, qty: eq(i) })), discount: Number($("#discount").value) || 0, tax: Number($("#tax").value) || 0, taxIncluded: $("#incl").value === "1", deposit: Number($("#deposit").value) || 0 });
     }
     function recalc() {
       const x = totals();
       $("#sub").textContent = money(x.sub); $("#disc").textContent = "−" + money(x.d);
       $("#taxv").textContent = (x.incl ? "incl. " : "") + money(x.t); $("#total").textContent = money(x.total);
+      $("#taxlabel").textContent = `${taxName()} (${Number($("#tax").value) || 0}%${x.incl ? ", included" : ""})`;
       $("#deprow").hidden = $("#balrow").hidden = !x.dep;
       $("#depv").textContent = money(x.dep); $("#balv").textContent = money(x.bal);
       const sa = stageAmounts(x.total, stages);
@@ -272,17 +294,19 @@
       const pctSum = stages.reduce((a, b) => a + (Number(b.pct) || 0), 0);
       renderChecks();
       $("#stage-msg").textContent = stages.length && Math.abs(pctSum - 100) > 0.001 ? `Stages add up to ${pctSum}%. They should total 100%.` : "";
-      document.querySelectorAll("[data-amt]").forEach((el) => { const i = items[el.dataset.amt]; if (i) el.textContent = money(i.qty * i.price); });
+      document.querySelectorAll("[data-amt]").forEach((el) => { const i = items[el.dataset.amt]; if (i) el.textContent = money(eq(i) * i.price); });
     }
     function render() {
       const adv = $("#adv").checked;
-      $("#thead").innerHTML = `<tr>${adv ? "<th>Section</th>" : ""}<th>Item</th>${adv ? "<th>Cost</th><th>Markup %</th>" : ""}<th>Qty</th><th>Unit price</th><th class="amt">Amount</th><th></th></tr>`;
+      const pgc = G() > 0;
+      $("#thead").innerHTML = `<tr>${adv ? "<th>Section</th>" : ""}<th>Item</th>${adv ? "<th>Cost</th><th>Markup %</th>" : ""}<th>Qty</th>${pgc ? "<th>× Guests</th>" : ""}<th>Unit price</th><th class="amt">Amount</th><th></th></tr>`;
       $("#rows").innerHTML = items.map((i, k) => `<tr>
         ${adv ? `<td class="p"><input data-k="${k}" data-f="section" aria-label="Line ${k + 1} section" placeholder="e.g. Labour" value="${esc(i.section || "")}" /></td>` : ""}
         <td><input data-k="${k}" data-f="desc" name="item-${k + 1}-description" aria-label="Line ${k + 1} description" placeholder="Description" value="${esc(i.desc)}" /></td>
         ${adv ? `<td class="p"><input data-k="${k}" data-f="cost" aria-label="Line ${k + 1} cost" type="number" min="0" step="any" value="${i.cost ?? ""}" /></td>
         <td class="n"><input data-k="${k}" data-f="markup" aria-label="Line ${k + 1} markup percent" type="number" min="0" step="any" value="${i.markup ?? ""}" /></td>` : ""}
         <td class="n"><input data-k="${k}" data-f="qty" name="item-${k + 1}-quantity" aria-label="Line ${k + 1} quantity" type="number" min="0" step="any" value="${i.qty}" /></td>
+        ${pgc ? `<td style="text-align:center"><input type="checkbox" data-k="${k}" data-f="pg" aria-label="Line ${k + 1} per guest" ${i.pg ? "checked" : ""} style="width:22px;height:22px;margin:0" /></td>` : ""}
         <td class="p"><input data-k="${k}" data-f="price" name="item-${k + 1}-unit-price" aria-label="Line ${k + 1} unit price" type="number" min="0" step="any" value="${i.price}" /></td>
         <td class="amt" data-amt="${k}"></td>
         <td><button class="x" data-del="${k}" title="Remove line ${k + 1}" aria-label="Remove line ${k + 1}" type="button">×</button></td></tr>`).join("");
@@ -290,9 +314,13 @@
     }
     function load(name) {
       industry = name; const t = TEMPLATES[name];
-      items = t.items.map(([desc, qty, price]) => ({ desc, qty, price }));
+      items = t.items.map(([desc, qty, price, o]) => ({ desc, qty, price, ...(o || {}), ...(o && o.cost ? { markup: r2((price / o.cost - 1) * 100), markupAuto: true } : {}) }));
+      $("#guests").value = t.guests || 0;
+      if (t.floor) $("#target").value = t.floor;
+      $("#adv").checked = !!t.adv;
       $("#seller").value = t.seller; $("#client").value = t.client; $("#tax").value = t.tax; $("#discount").value = 0;
       $("#cur").value = t.currency || "USD"; $("#incl").value = t.incl ? "1" : "0";
+      taxNameEdited = false; defaultTaxName();
       if (t.method) $("#pmethod").value = t.method;
       checklist = t.checklist || []; dismissed = new Set();
       stages = (t.stages || []).map(([pct, label]) => ({ pct, label })); renderStages();
@@ -305,7 +333,7 @@
     $("#rows").addEventListener("input", (e) => {
       const k = e.target.dataset.k; if (k == null) return;
       const f = e.target.dataset.f, it = items[k];
-      it[f] = f === "desc" || f === "section" ? e.target.value : Math.max(0, Number(e.target.value) || 0);
+      it[f] = f === "pg" ? e.target.checked : f === "desc" || f === "section" ? e.target.value : Math.max(0, Number(e.target.value) || 0);
       if (f === "cost" && it.cost > 0 && (it.markup == null || it.markupAuto) && it.price > 0) {
         // No markup typed yet: derive it from the current price instead of overwriting the price.
         it.markup = r2((it.price / it.cost - 1) * 100); it.markupAuto = true;
@@ -321,6 +349,9 @@
     $("#add").onclick = () => { items.push({ desc: "", qty: 1, price: 0 }); render(); const ins = document.querySelectorAll('#rows input[data-f="desc"]'); ins[ins.length - 1].focus(); };
     $("#adv").addEventListener("change", render);
     $("#target").addEventListener("input", renderChecks);
+    $("#guests").addEventListener("input", render);
+    $("#taxname").addEventListener("input", () => { taxNameEdited = true; recalc(); });
+    ["#cur", "#incl"].forEach((sel) => $(sel).addEventListener("change", () => { defaultTaxName(); recalc(); }));
     $("#missed").addEventListener("click", (e) => {
       const a = e.target.dataset.addc, sk = e.target.dataset.skipc;
       if (a != null) { const c = checklist[a]; items.push({ desc: c[0], qty: c[1], price: c[2] }); render(); }
@@ -356,7 +387,9 @@
 
     function quote() {
       const x = totals();
-      return { seller: $("#seller").value, client: $("#client").value, industry, items, discount: Number($("#discount").value) || 0, tax: Number($("#tax").value) || 0, taxIncluded: x.incl, currency: $("#cur").value, terms: $("#terms").value, method: $("#pmethod").value, payDetails: $("#pdetails").value, deposit: Number($("#deposit").value) || 0, stages: stages.map((st) => ({ label: st.label, pct: Number(st.pct) || 0 })), validDays: Number($("#valid").value) || 30, notes: $("#notes").value, total: x.total };
+      const g = G();
+      const qi = items.map((i) => (i.pg && g ? { ...i, desc: `${i.desc} (${i.qty !== 1 ? i.qty + " × " : ""}${g} guests)`, qty: eq(i) } : i));
+      return { seller: $("#seller").value, client: $("#client").value, industry, items: qi, guests: g, taxName: taxName(), discount: Number($("#discount").value) || 0, tax: Number($("#tax").value) || 0, taxIncluded: x.incl, currency: $("#cur").value, terms: $("#terms").value, method: $("#pmethod").value, payDetails: $("#pdetails").value, deposit: Number($("#deposit").value) || 0, stages: stages.map((st) => ({ label: st.label, pct: Number(st.pct) || 0 })), validDays: Number($("#valid").value) || 30, notes: $("#notes").value, total: x.total };
     }
 
     $("#simulate").onclick = async () => {
@@ -413,13 +446,13 @@
       const validUntil = new Date(q.createdAt); validUntil.setDate(validUntil.getDate() + (q.validDays || 30));
       $("#proposal").innerHTML = `
         <div class="meta"><div><h1 style="margin:0;color:#111">${esc(q.seller)}</h1><div>Quote for <b id="q-client">${esc(q.client)}</b></div></div>
-        <div style="text-align:right"><div><b>Quote #</b> <span id="q-number">${esc(q.no)}</span></div><div><b>Date</b> <span id="q-date">${esc(fmtDate(new Date(q.createdAt)))}</span></div><div><b>Valid until</b> <span id="q-valid">${esc(fmtDate(validUntil))}</span></div><div><b>Currency</b> ${esc(q.currency)}</div></div></div>
+        <div style="text-align:right"><div><b>Quote #</b> <span id="q-number">${esc(q.no)}</span></div><div><b>Date</b> <span id="q-date">${esc(fmtDate(new Date(q.createdAt)))}</span></div><div><b>Valid until</b> <span id="q-valid">${esc(fmtDate(validUntil))}</span></div><div><b>Currency</b> ${esc(q.currency)}</div>${q.guests ? `<div><b>Guests</b> <span id="q-guests">${q.guests}</span></div>` : ""}</div></div>
         <table><thead><tr><th>Description</th><th class="r">Qty</th><th class="r">Unit price</th><th class="r">Amount</th></tr></thead>
         <tbody>${body}</tbody></table>
         <table style="width:auto;margin-left:auto"><tbody>
           <tr><td>Subtotal</td><td class="r">${money(x.sub)}</td></tr>
           <tr><td>Discount (${q.discount}%)</td><td class="r">−${money(x.d)}</td></tr>
-          <tr><td>Tax (${q.tax}%${x.incl ? ", included" : ""})</td><td class="r">${money(x.t)}</td></tr>
+          <tr><td id="q-taxlabel">${esc(q.taxName || "Tax")} (${q.tax}%${x.incl ? ", included" : ""})</td><td class="r">${money(x.t)}</td></tr>
           <tr><td><b>Total</b></td><td class="r"><b id="q-total" style="font-size:1.3em">${money(x.total)}</b></td></tr>
           ${x.dep ? `<tr><td>Deposit due (${q.deposit}%)</td><td class="r" id="q-deposit">${money(x.dep)}</td></tr><tr><td>Balance due</td><td class="r" id="q-balance">${money(x.bal)}</td></tr>` : ""}
         </tbody></table>
