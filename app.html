@@ -378,7 +378,7 @@
     function renderExtras() {
       const ex = items.map((i, k) => ({ i, k })).filter((z) => z.i.opt);
       $("#extras").hidden = !ex.length;
-      $("#extras-list").innerHTML = ex.map(({ i, k }) => `<label style="display:flex;gap:10px;align-items:center;min-height:44px;font-size:1rem;cursor:pointer"><input type="checkbox" data-xk="${k}" ${i.on ? "checked" : ""} aria-label="Include ${esc(i.desc)}" style="width:22px;height:22px;margin:0;flex:0 0 auto"> <span style="flex:1">${esc(i.desc)}</span> <span class="muted" data-xamt="${k}">${money(eq(i) * i.price)}${i.pg ? " (per guest)" : ""}</span></label>`).join("");
+      $("#extras-list").innerHTML = ex.map(({ i, k }) => `<div style="display:flex;gap:8px;align-items:center"><label style="flex:1;display:flex;gap:10px;align-items:center;min-height:44px;font-size:1rem;cursor:pointer" style="display:flex;gap:10px;align-items:center;min-height:44px;font-size:1rem;cursor:pointer"><input type="checkbox" data-xk="${k}" ${i.on ? "checked" : ""} aria-label="Include ${esc(i.desc)}" style="width:22px;height:22px;margin:0;flex:0 0 auto"> <span style="flex:1">${esc(i.desc)}</span> <span class="muted" data-xamt="${k}">${money(eq(i) * i.price)}${i.pg ? " (per guest)" : ""}</span></label><button class="chip" type="button" data-unopt="${k}" title="Make this a standard line again">standard</button></div>`).join("");
     }
     function render() {
       const adv = $("#adv").checked;
@@ -387,7 +387,7 @@
       const descCell = (i, k) => catalog
         ? `<select data-k="${k}" data-f="desc" aria-label="Line ${k + 1} product">${i.desc && !catalog.some((c) => c[0] === i.desc) ? `<option>${esc(i.desc)}</option>` : ""}${i.desc ? "" : '<option value="">Choose product</option>'}${catalog.map((c) => `<option${c[0] === i.desc ? " selected" : ""}>${esc(c[0])}</option>`).join("")}</select>`
         : `<input data-k="${k}" data-f="desc" name="item-${k + 1}-description" aria-label="Line ${k + 1} description" placeholder="Description" value="${esc(i.desc)}" />`;
-      $("#thead").innerHTML = `<tr>${adv ? "<th>Section</th>" : ""}<th>Item</th>${mix ? "<th>Billing</th>" : ""}${adv ? "<th>Cost</th><th>Markup %</th>" : ""}<th>Qty</th>${pgc ? "<th>× Guests</th>" : ""}<th>Unit price</th><th class="amt">Amount</th><th></th></tr>`;
+      $("#thead").innerHTML = `<tr>${adv ? "<th>Section</th>" : ""}<th>Item</th>${mix ? "<th>Billing</th>" : ""}${adv ? "<th>Cost</th><th>Markup %</th>" : ""}<th>Qty</th>${pgc ? "<th>× Guests</th>" : ""}<th>Unit price</th><th class="amt">Amount</th><th title="Tick to make this line an optional extra">Optional</th><th></th></tr>`;
       renderExtras();
       $("#rows").innerHTML = items.map((i, k) => i.opt ? "" : `<tr>
         ${adv ? `<td class="p"><input data-k="${k}" data-f="section" aria-label="Line ${k + 1} section" placeholder="e.g. Labour" value="${esc(i.section || "")}" /></td>` : ""}
@@ -399,6 +399,7 @@
         ${pgc ? `<td style="text-align:center"><input type="checkbox" data-k="${k}" data-f="pg" aria-label="Line ${k + 1} per guest" ${i.pg ? "checked" : ""} style="width:22px;height:22px;margin:0" /></td>` : ""}
         <td class="p"><input data-k="${k}" data-f="price" name="item-${k + 1}-unit-price" aria-label="Line ${k + 1} unit price" type="number" min="0" step="any" value="${i.price}" /></td>
         <td class="amt" data-amt="${k}"></td>
+        <td style="text-align:center"><input type="checkbox" data-mkopt="${k}" title="Make optional extra" aria-label="Line ${k + 1} optional" style="width:20px;height:20px;margin:0"></td>
         <td><button class="x" data-del="${k}" title="Remove line ${k + 1}" aria-label="Remove line ${k + 1}" type="button">×</button></td></tr>`).join("");
       recalc();
     }
@@ -445,6 +446,8 @@
       recalc();
     });
     $("#rows").addEventListener("click", (e) => { if (e.target.dataset.del != null) { items.splice(e.target.dataset.del, 1); render(); } });
+    $("#rows").addEventListener("change", (e) => { const k = e.target.dataset.mkopt; if (k == null) return; items[k].opt = true; items[k].on = true; render(); });
+    $("#extras-list").addEventListener("click", (e) => { const k = e.target.dataset.unopt; if (k == null) return; items[k].opt = false; render(); });
     $("#extras-list").addEventListener("change", (e) => { const k = e.target.dataset.xk; if (k == null) return; items[k].on = e.target.checked; recalc(); renderChecks && renderChecks(); });
     $("#add").onclick = () => { items.push({ desc: "", qty: 1, price: 0, bill: "once" }); render(); const ins = document.querySelectorAll('#rows [data-f="desc"]'); ins[ins.length - 1].focus(); };
     $("#adv").addEventListener("change", render);
