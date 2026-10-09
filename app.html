@@ -244,6 +244,7 @@
       });
       if (!(Number($("#tax").value) > 0)) out.push({ kind: "tax", text: `${esc(taxName())} is 0%. Is that right for this job?` });
       const m = margin();
+      if (m && storeMode) { if (m.pct < m.target) out.push({ kind: "margin", text: "Under head office's margin. Check with your manager before sending." }); return out; }
       if (m && m.pct < m.target) out.push({ kind: "margin", text: `THIN JOB: margin ${m.pct.toFixed(1)}% is below your ${m.target}% floor. You'd need about ${money(m.shortfall)} more to reach it.` });
       if (m) m.sections.filter((x) => x.name && x.pct < m.target).forEach((x) => out.push({ kind: "margin", text: `Thin section: ${esc(x.name)} at ${x.pct.toFixed(1)}% (floor ${m.target}%)` }));
       return out;
@@ -267,6 +268,7 @@
       $("#covered").textContent = checklist.length ? `Checklist: ${ok.length}/${checklist.length} covered${ok.length ? ` (✓ ${ok.join(", ")})` : ""}` : "";
       const m = margin();
       $("#margin-box").hidden = !($("#adv").checked || m);
+      if (m && storeMode) { $("#margin-read").innerHTML = m.pct < m.target ? `<span id="thin-flag" role="alert" style="display:inline-block;background:#7f1d1d;color:#fff;font-weight:800;border-radius:6px;padding:4px 10px">🚩 Under head office's margin. Check with your manager before sending.</span>` : `<span id="ok-flag" style="display:inline-block;background:#14532d;color:#bbf7d0;font-weight:700;border-radius:6px;padding:4px 10px">✓ Margin OK. Good to send.</span>`; return; }
       $("#margin-read").innerHTML = m ? `${m.pct < m.target ? `<span id="thin-flag" role="alert" style="display:inline-block;background:#7f1d1d;color:#fff;font-weight:800;border-radius:6px;padding:2px 8px;margin-right:6px">🚩 THIN JOB</span>` : `<span id="ok-flag" style="display:inline-block;background:#14532d;color:#bbf7d0;font-weight:700;border-radius:6px;padding:2px 8px;margin-right:6px">✓ Above floor</span>`}Margin <b id="margin-pct" style="color:${m.pct < m.target ? "#ff7a7a" : "#3ddc97"}">${m.pct.toFixed(1)}%</b> (cost ${money(m.cost)}, price ${money(m.rev)})${m.uncosted ? ` · ${m.uncosted} line(s) without cost` : ""}
         ${m.sections.some((x) => x.name) ? `<div style="margin-top:6px;display:flex;flex-wrap:wrap;gap:6px">${m.sections.map((x) => `<span style="font-size:.8rem;border:1px solid ${x.pct < m.target ? "#b91c1c" : "#2a2a3a"};border-radius:999px;padding:2px 8px;color:${x.pct < m.target ? "#ff9a9a" : "inherit"}">${esc(x.name || "Other")}: ${x.pct.toFixed(1)}%</span>`).join("")}</div>` : ""}` : `<span class="muted">Enter costs to see your margin.</span>`;
     }
@@ -308,7 +310,7 @@
       const periods = Math.max(1, Math.ceil(m / per));
       return { months: m, periods, name, value: r2(total * periods) };
     }
-    let catalog = null, signatory = false;
+    let catalog = null, signatory = false, storeMode = false;
     const mixOn = () => $("#mix").checked;
     const isMon = (i) => i.bill === "monthly";
     function totals() {
@@ -649,6 +651,20 @@
     const tmatch = tq && Object.keys(TEMPLATES).find((n) => n.toLowerCase().includes(tq));
     if (tmatch) industry = tmatch;
     if (!location.hash.startsWith("#q=")) load(industry); else render();
+    // Store mode: /app.html?t=office&m=<menu> prices platters from head office's costed menu; costs stay hidden.
+    const MENU = (new URLSearchParams(location.search).get("m") || "").toLowerCase();
+    if (MENU && !location.hash.startsWith("#q=")) {
+      fetch("/api/menu?m=" + encodeURIComponent(MENU)).then((r) => r.json()).then((mn) => {
+        if (!mn.platters) return;
+        storeMode = true;
+        $("#adv").checked = false; $("#adv").closest("label").hidden = true;
+        $("#target").value = mn.floor; $("#target").readOnly = true;
+        const extras = items.filter((i) => !i.pg);
+        items = mn.platters.map((p) => ({ desc: p.name, qty: 1, price: p.price, cost: p.cost, pg: true, section: "" })).concat(extras);
+        render();
+        say(`Prices from ${mn.name.split("·")[0].trim()} head-office menu${mn.updated ? ", re-costed " + new Date(mn.updated).toLocaleString() : ""}. Tap a line's × to remove a platter, change the head count, and the margin check updates.`);
+      }).catch(() => {});
+    }
   })();
   </script>
 </body>
