@@ -60,8 +60,10 @@ module.exports = async (req, res) => {
       let v = null, raw = "";
       if (llm.enabled) {
         const prompt = `You are ${p.name}, ${p.role}: ${p.stance}.\n\nThe quote you received:\n${summary}`;
-        raw = await llm.complete(SYSTEM, prompt, 400);
-        v = llm.json(raw);
+        for (let attempt = 0; attempt < 2 && !(v && Number(v.walkaway_price) > 0); attempt++) {
+          raw = await llm.complete(SYSTEM, prompt, 1500);
+          v = llm.json(raw);
+        }
       }
       const live = Boolean(v && Number(v.walkaway_price) > 0);
       if (!live) v = fallback(p, total);

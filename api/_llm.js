@@ -46,15 +46,25 @@ async function complete(system, input, maxTokens = 600) {
   return out;
 }
 
-// Pull the first JSON object or array out of a model reply.
+// Pull the first parseable JSON object or array out of a model reply.
 function json(text) {
-  const m = String(text).match(/[\[{][\s\S]*[\]}]/);
-  if (!m) return null;
-  try {
-    return JSON.parse(m[0]);
-  } catch (_) {
-    return null;
+  const s = String(text);
+  for (let i = 0; i < s.length; i++) {
+    if (s[i] !== "{" && s[i] !== "[") continue;
+    let depth = 0, inStr = false, esc = false;
+    for (let j = i; j < s.length; j++) {
+      const c = s[j];
+      if (inStr) { if (esc) esc = false; else if (c === "\\") esc = true; else if (c === '"') inStr = false; continue; }
+      if (c === '"') inStr = true;
+      else if (c === "{" || c === "[") depth++;
+      else if (c === "}" || c === "]") {
+        if (--depth === 0) {
+          try { return JSON.parse(s.slice(i, j + 1)); } catch (_) { break; }
+        }
+      }
+    }
   }
+  return null;
 }
 
 module.exports = { complete, json, enabled: Boolean(process.env.ANTHROPIC_API_KEY || process.env.OPENAI_API_KEY) };
