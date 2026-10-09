@@ -4,23 +4,44 @@
 //   type/op "customer": name, status, needs, notes, owner   (upsert by name)
 //   type/op "note":     title, body, author                   (append)
 //   type/op "ask":      customer, text                        (adds to the build queue, see /api/ask)
+//   type/op "investor": name, status, amount, valuation, equity, conditions, notes, owner (upsert by name)
+//   type/op "log":      party, kind (customer|investor), said, promised, channel, author (append)
+//   customer/investor also take agent=NAME to claim the record for a parallel Claude session
 const store = require("./_store");
 const KEY = "iXhjLkNXrzi2";
 const STATUSES = ["not contacted", "talking", "building", "in review", "won", "lost", "skip"];
 const clip = (v, n) => String(v ?? "").slice(0, n);
 
-async function upsertCustomer(b) {
-  const name = clip(b.name, 120).trim();
-  if (!name) throw new Error("name required");
-  const all = await store.list("customers");
-  const i = all.findIndex((c) => c.name.toLowerCase() === name.toLowerCase());
-  const prev = i >= 0 ? all[i] : { name, status: "not contacted", needs: "", notes: "", owner: "" };
-  const next = { ...prev, updated: new Date().toISOString() };
-  for (const f of ["needs", "notes", "owner"]) if (b[f] != null && b[f] !== "") next[f] = clip(b[f], 3000);
-  if (b.status) next.status = STATUSES.includes(String(b.status).toLowerCase()) ? String(b.status).toLowerCase() : clip(b.status, 30);
-  if (i >= 0) await store.set("customers", i, next);
-  else await store.push("customers", next);
-  return next;
+const INV_STATUSES = ["not contacted", "pitched", "interested", "terms", "closed", "passed"];
+
+// Upsert by name. `agent` + `claimed` let parallel Claude sessions mark what they're working on.
+function upserter(key, statuses, fields) {
+  return async (b) => {
+    const name = clip(b.name, 120).trim();
+    if (!name) throw new Error("name required");
+    const all = await store.list(key);
+    const i = all.findIndex((c) => c.name.toLowerCase() === name.toLowerCase());
+    const prev = i >= 0 ? all[i] : { name, status: statuses[0], ...Object.fromEntries(fields.map((f) => [f, ""])) };
+    const next = { ...prev, updated: new Date().toISOString() };
+    for (const f of fields) if (b[f] != null && b[f] !== "") next[f] = clip(b[f], 3000);
+    if (b.agent != null && b.agent !== "") { next.agent = clip(b.agent, 60); next.claimed = next.updated; }
+    if (b.status) next.status = statuses.includes(String(b.status).toLowerCase()) ? String(b.status).toLowerCase() : clip(b.status, 30);
+    if (i >= 0) await store.set(key, i, next);
+    else await store.push(key, next);
+    return next;
+  };
+}
+const upsertCustomer = upserter("customers", STATUSES, ["needs", "notes", "owner"]);
+const upsertInvestor = upserter("investors", INV_STATUSES, ["amount", "valuation", "equity", "conditions", "notes", "owner"]);
+
+// Conversation log: every exchange with a customer or investor, and anything we promised.
+async function addLog(b) {
+  const said = clip(b.said, 4000).trim();
+  if (!said) throw new Error("said required");
+  const l = { party: clip(b.party, 120), kind: b.kind === "investor" ? "investor" : "customer", said, promised: clip(b.promised, 1500),
+    channel: clip(b.channel, 60), author: clip(b.author, 60), at: new Date().toISOString() };
+  await store.push("convos", l);
+  return l;
 }
 
 async function addNote(b) {
@@ -43,8 +64,20 @@ async function addAsk(b) {
 function markdown(s) {
   const L = ["# Team Quotax HQ", `Updated ${new Date().toISOString()}`, "",
     "Live product: https://arg-foundergame.vercel.app/app.html", "", "## Customers"];
-  for (const c of s.customers) L.push(`- **${c.name}** [${c.status}]${c.owner ? " · owner " + c.owner : ""}${c.needs ? "\n  - Needs: " + c.needs : ""}${c.notes ? "\n  - Notes: " + c.notes : ""}`);
+  const claim = (c) => c.agent ? ` · agent ${c.agent} (${c.claimed})` : "";
+  for (const c of s.customers) L.push(`- **${c.name}** [${c.status}]${c.owner ? " · owner " + c.owner : ""}${claim(c)}${c.needs ? "\n  - Needs: " + c.needs : ""}${c.notes ? "\n  - Notes: " + c.notes : ""}`);
   if (!s.customers.length) L.push("- (none yet)");
+  L.push("", "## Investors");
+  for (const v of s.investors) L.push(`- **${v.name}** [${v.status}]${v.owner ? " · owner " + v.owner : ""}${claim(v)}` +
+    ["amount", "valuation", "equity", "conditions", "notes"].filter((f) => v[f]).map((f) => `\n  - ${f}: ${v[f]}`).join(""));
+  if (!s.investors.length) L.push("- (none yet)");
+  L.push("", "## Commitments we made");
+  const promised = s.convos.filter((l) => l.promised);
+  for (const l of promised) L.push(`- ${l.party} (${l.kind}) · ${l.at}: ${l.promised}`);
+  if (!promised.length) L.push("- (none logged)");
+  L.push("", "## Conversation log (latest 60)");
+  for (const l of s.convos.slice(-60).reverse()) L.push(`- ${l.at} · ${l.kind} **${l.party}**${l.channel ? " via " + l.channel : ""}${l.author ? " · by " + l.author : ""}: ${l.said.replace(/\s+/g, " ")}`);
+  if (!s.convos.length) L.push("- (empty)");
   L.push("", "## Build queue");
   for (const a of s.asks) L.push(`- #${a.id} [${a.status}] ${a.customer}: ${a.text.replace(/\s+/g, " ").slice(0, 400)}${a.note ? "\n  - Builder: " + a.note : ""}`);
   if (!s.asks.length) L.push("- (empty)");
@@ -62,12 +95,13 @@ module.exports = async (req, res) => {
     const op = req.method === "POST" ? body.type : q.op;
     const args = req.method === "POST" ? body : q;
     if (op) {
-      const fn = { customer: upsertCustomer, note: addNote, ask: addAsk }[op];
-      if (!fn) return res.status(400).json({ error: "unknown type; use customer, note or ask" });
+      const fn = { customer: upsertCustomer, investor: upsertInvestor, log: addLog, note: addNote, ask: addAsk }[op];
+      if (!fn) return res.status(400).json({ error: "unknown type; use customer, investor, log, note or ask" });
       return res.json({ ok: true, saved: await fn(args) });
     }
-    const [customers, asks, notes] = await Promise.all([store.list("customers"), store.list("asks"), store.list("notes")]);
-    const s = { customers, asks, notes };
+    const [customers, investors, convos, asks, notes] = await Promise.all(
+      ["customers", "investors", "convos", "asks", "notes"].map((key) => store.list(key)));
+    const s = { customers, investors, convos, asks, notes };
     if (q.format === "md") {
       res.setHeader("content-type", "text/plain; charset=utf-8");
       return res.status(200).send ? res.status(200).send(markdown(s)) : res.end(markdown(s));
