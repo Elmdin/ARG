@@ -118,7 +118,7 @@
         <label>Tax %<input id="tax" type="number" min="0" max="50" step="0.25" value="8.5" /></label>
         <label style="flex:0 1 120px">Tax name<input id="taxname" value="Tax" aria-label="Tax name" /></label>
         <label>Currency<select id="cur">
-          <option>USD</option><option>CAD</option><option>AUD</option><option>NZD</option><option>EUR</option><option>GBP</option><option>PHP</option><option>KES</option><option>BRL</option><option>SGD</option><option>MYR</option><option>IDR</option><option>AED</option>
+          <option>USD</option><option>CAD</option><option>AUD</option><option>NZD</option><option>EUR</option><option>GBP</option><option>PHP</option><option>KES</option><option>BRL</option><option>SGD</option><option>DKK</option><option>MYR</option><option>IDR</option><option>AED</option>
         </select></label>
         <label>Tax mode<select id="incl"><option value="0">Tax added on top</option><option value="1">Prices include tax (GST/VAT)</option></select></label>
       </div>
@@ -147,6 +147,10 @@
         <p id="stage-msg" class="muted" style="margin:4px 0 0"></p>
       </div>
 
+      <div id="extras" hidden role="group" aria-label="Optional extras" style="margin-top:14px;border:1px solid var(--line);border-radius:10px;padding:12px">
+        <b>Optional extras</b> <span class="muted" style="font-size:.85rem">(tick to add to the total; only ticked extras appear on the client's quote)</span>
+        <div id="extras-list" style="display:grid;gap:8px;margin-top:8px"></div>
+      </div>
       <div class="totals">
         <div><span class="muted">Subtotal</span><span id="sub"></span></div>
         <div><span class="muted">Discount</span><span id="disc"></span></div>
@@ -230,6 +234,9 @@
       "Education / school fees (KES)": { seller: "Elimu Plus Learning Centres", client: "", tax: 0, currency: "KES", method: "M-Pesa Paybill", payDetails: "Paybill 400200, Account: student name", terms: "Termly", term: 12, stages: [[50, "Start of term"], [50, "Mid-term"]], items: [["Tuition, per term", 1, 38000], ["Lunch programme, per term", 1, 9500], ["Transport, per term", 1, 7500], ["Activity & materials fee, per term", 1, 3500]] },
       "Office catering (AU)": { seller: "Wattlebrook Fresh Kitchen", client: "", tax: 10, currency: "AUD", incl: true, method: "Bank transfer", terms: "Net 30", guests: 60, floor: 35, items: [["Gourmet sandwich & wrap platter (per head)", 1, 14.5, { pg: true, cost: 6.2 }], ["Sushi platter, made in store today (per head)", 1, 12, { pg: true, cost: 5.1 }], ["Roast chicken & salad bowls (per head)", 1, 16, { pg: true, cost: 7.4 }], ["Seasonal fruit platter (per head)", 1, 5.5, { pg: true, cost: 2.3 }], ["Juice & sparkling water (per head)", 1, 4, { pg: true, cost: 1.6 }], ["CBD delivery & set-up", 1, 65, { cost: 38 }]],
         checklist: [["Dietary / allergen labels", 1, 0, "dietary|allergen|vegan|gluten|halal"], ["Plates, napkins & cutlery", 1, 45, "plates|napkin|cutlery"], ["Platter pick-up", 1, 25, "pick-up|pickup|collect"]] },
+      "Venue / hall hire (DKK)": { seller: "Havnehallen Events", client: "", tax: 25, currency: "DKK", incl: false, guests: 180, deposit: 30, method: "Bank transfer", terms: "Net 15",
+        items: [["Main hall hire, full day", 1, 32000], ["Terrace hire, evening", 1, 9000], ["Conference catering, full day (per guest)", 1, 425, { pg: true }], ["Coffee breaks x2 (per guest)", 1, 65, { pg: true }],
+          ["AV package (projector, mics, technician)", 1, 7000, { opt: true, on: true }], ["Late bar until 01:00", 1, 10500, { opt: true, on: false }], ["Late-night staff (per hour)", 4, 650, { opt: true, on: false }], ["Welcome drink (per guest)", 1, 55, { pg: true, opt: true, on: false }], ["Cloakroom attendant", 1, 1600, { opt: true, on: false }]] },
       "Creative studio / proposal": { seller: "Signal & Thread Studio", client: "", tax: 0, method: "Bank transfer", terms: "Net 15", brand: { color: "#7c3aed", font: "Modern", intro: "Brand refresh and launch website. Fixed scope, three review rounds, delivered in 8 weeks." }, stages: [[50, "On signature"], [50, "On launch"]], items: [["Discovery & brand strategy workshop", 1, 4500], ["Visual identity system (logo, type, color)", 1, 9500], ["Website design, up to 8 pages", 1, 14000], ["Launch content & photo art direction", 1, 6000], ["Project management", 1, 3000], ["Monthly brand & site retainer", 1, 2500, { bill: "monthly" }]], mix: true },
       "Telecom / enterprise (SG)": { seller: "Kallang Pacific Telecom", client: "", tax: 9, currency: "SGD", method: "Bank transfer", terms: "Monthly, net 60", term: 36, mix: true, signatory: true,
         catalog: [["Dedicated fibre access", "monthly"], ["Managed network", "monthly"], ["Cloud connect", "monthly"], ["Data centre cross-connect", "monthly"], ["Installation", "once"], ["Activation", "once"]],
@@ -250,7 +257,7 @@
     let stages = [];
     const G = () => Math.max(0, Math.floor(Number($("#guests").value) || 0));
     const eq = (i) => i.qty * (i.pg ? G() : 1);
-    const TAXNAMES = { NZD: "GST", AUD: "GST", SGD: "GST", CAD: "GST/HST", EUR: "VAT", GBP: "VAT", PHP: "VAT", KES: "VAT", AED: "VAT" };
+    const TAXNAMES = { DKK: "VAT", NZD: "GST", AUD: "GST", SGD: "GST", CAD: "GST/HST", EUR: "VAT", GBP: "VAT", PHP: "VAT", KES: "VAT", AED: "VAT" };
     let taxNameEdited = false;
     const taxName = () => ($("#taxname").value || "Tax").trim();
     function defaultTaxName() { if (!taxNameEdited) $("#taxname").value = TAXNAMES[$("#cur").value] || ($("#incl").value === "1" ? "GST/VAT" : "Tax"); }
@@ -272,7 +279,7 @@
       return out;
     }
     function margin() {
-      const costed = items.filter((i) => i.cost > 0);
+      const costed = live().filter((i) => i.cost > 0);
       if (!costed.length) return null;
       const f = 1 - (Number($("#discount").value) || 0) / 100;
       const rev = costed.reduce((a, i) => a + eq(i) * i.price * f, 0), cost = costed.reduce((a, i) => a + eq(i) * i.cost, 0);
@@ -334,9 +341,10 @@
     }
     let catalog = null, signatory = false, storeMode = false;
     const mixOn = () => $("#mix").checked;
+    const live = () => items.filter((i) => !(i.opt && !i.on));
     const isMon = (i) => i.bill === "monthly";
     function totals() {
-      const all = items.map((i) => ({ ...i, qty: eq(i) }));
+      const all = live().map((i) => ({ ...i, qty: eq(i) }));
       const o = { discount: Number($("#discount").value) || 0, tax: Number($("#tax").value) || 0, taxIncluded: $("#incl").value === "1", deposit: Number($("#deposit").value) || 0 };
       if (!mixOn()) return totalsFor({ ...o, items: all });
       const x = totalsFor({ ...o, items: all.filter((i) => !isMon(i)) });
@@ -364,7 +372,13 @@
       const pctSum = stages.reduce((a, b) => a + (Number(b.pct) || 0), 0);
       renderChecks();
       $("#stage-msg").textContent = stages.length && Math.abs(pctSum - 100) > 0.001 ? `Stages add up to ${pctSum}%. They should total 100%.` : "";
+      document.querySelectorAll("[data-xamt]").forEach((el) => { const i = items[el.dataset.xamt]; if (i) el.textContent = money(eq(i) * i.price) + (i.pg ? " (per guest)" : ""); });
       document.querySelectorAll("[data-amt]").forEach((el) => { const i = items[el.dataset.amt]; if (i) el.textContent = money(eq(i) * i.price); });
+    }
+    function renderExtras() {
+      const ex = items.map((i, k) => ({ i, k })).filter((z) => z.i.opt);
+      $("#extras").hidden = !ex.length;
+      $("#extras-list").innerHTML = ex.map(({ i, k }) => `<label style="display:flex;gap:10px;align-items:center;min-height:44px;font-size:1rem;cursor:pointer"><input type="checkbox" data-xk="${k}" ${i.on ? "checked" : ""} aria-label="Include ${esc(i.desc)}" style="width:22px;height:22px;margin:0;flex:0 0 auto"> <span style="flex:1">${esc(i.desc)}</span> <span class="muted" data-xamt="${k}">${money(eq(i) * i.price)}${i.pg ? " (per guest)" : ""}</span></label>`).join("");
     }
     function render() {
       const adv = $("#adv").checked;
@@ -374,7 +388,8 @@
         ? `<select data-k="${k}" data-f="desc" aria-label="Line ${k + 1} product">${i.desc && !catalog.some((c) => c[0] === i.desc) ? `<option>${esc(i.desc)}</option>` : ""}${i.desc ? "" : '<option value="">Choose product</option>'}${catalog.map((c) => `<option${c[0] === i.desc ? " selected" : ""}>${esc(c[0])}</option>`).join("")}</select>`
         : `<input data-k="${k}" data-f="desc" name="item-${k + 1}-description" aria-label="Line ${k + 1} description" placeholder="Description" value="${esc(i.desc)}" />`;
       $("#thead").innerHTML = `<tr>${adv ? "<th>Section</th>" : ""}<th>Item</th>${mix ? "<th>Billing</th>" : ""}${adv ? "<th>Cost</th><th>Markup %</th>" : ""}<th>Qty</th>${pgc ? "<th>× Guests</th>" : ""}<th>Unit price</th><th class="amt">Amount</th><th></th></tr>`;
-      $("#rows").innerHTML = items.map((i, k) => `<tr>
+      renderExtras();
+      $("#rows").innerHTML = items.map((i, k) => i.opt ? "" : `<tr>
         ${adv ? `<td class="p"><input data-k="${k}" data-f="section" aria-label="Line ${k + 1} section" placeholder="e.g. Labour" value="${esc(i.section || "")}" /></td>` : ""}
         <td>${descCell(i, k)}</td>
         ${mix ? `<td class="p"><select data-k="${k}" data-f="bill" aria-label="Line ${k + 1} billing"><option value="once"${isMon(i) ? "" : " selected"}>One-time</option><option value="monthly"${isMon(i) ? " selected" : ""}>Monthly</option></select></td>` : ""}
@@ -401,6 +416,7 @@
       if (t.terms) $("#terms").value = t.terms;
       $("#pdetails").value = t.payDetails || "";
       $("#term").value = t.term || 0;
+      $("#deposit").value = t.deposit || 0;
       const b = t.brand || {};
       logo = ""; $("#logo").value = "";
       $("#bcolor").value = b.color || "#111111"; $("#bfont").value = b.font || "Clean sans"; $("#intro").value = b.intro || "";
@@ -416,7 +432,7 @@
       const k = e.target.dataset.k; if (k == null) return;
       const f = e.target.dataset.f, it = items[k];
       if (f === "desc" && catalog) { const c = catalog.find((z) => z[0] === e.target.value); if (c) { it.desc = c[0]; it.bill = c[1]; render(); return; } }
-      it[f] = f === "pg" ? e.target.checked : f === "desc" || f === "section" || f === "bill" ? e.target.value : Math.max(0, Number(e.target.value) || 0);
+      it[f] = f === "pg" || f === "on" ? e.target.checked : f === "desc" || f === "section" || f === "bill" ? e.target.value : Math.max(0, Number(e.target.value) || 0);
       if (f === "cost" && it.cost > 0 && (it.markup == null || it.markupAuto) && it.price > 0) {
         // No markup typed yet: derive it from the current price instead of overwriting the price.
         it.markup = r2((it.price / it.cost - 1) * 100); it.markupAuto = true;
@@ -429,6 +445,7 @@
       recalc();
     });
     $("#rows").addEventListener("click", (e) => { if (e.target.dataset.del != null) { items.splice(e.target.dataset.del, 1); render(); } });
+    $("#extras-list").addEventListener("change", (e) => { const k = e.target.dataset.xk; if (k == null) return; items[k].on = e.target.checked; recalc(); renderChecks && renderChecks(); });
     $("#add").onclick = () => { items.push({ desc: "", qty: 1, price: 0, bill: "once" }); render(); const ins = document.querySelectorAll('#rows [data-f="desc"]'); ins[ins.length - 1].focus(); };
     $("#adv").addEventListener("change", render);
     $("#mix").addEventListener("change", render);
@@ -489,7 +506,7 @@
     function quote() {
       const x = totals();
       const g = G();
-      const qi = items.map((i) => (i.pg && g ? { ...i, desc: `${i.desc} (${i.qty !== 1 ? i.qty + " × " : ""}${g} guests)`, qty: eq(i) } : i));
+      const qi = live().map((i) => (i.pg && g ? { ...i, desc: `${i.desc} (${i.qty !== 1 ? i.qty + " × " : ""}${g} guests)`, qty: eq(i) } : i));
       return { seller: $("#seller").value, client: $("#client").value, industry, items: qi, guests: g, taxName: taxName(), discount: Number($("#discount").value) || 0, tax: Number($("#tax").value) || 0, taxIncluded: x.incl, currency: $("#cur").value, terms: $("#terms").value, method: $("#pmethod").value, payDetails: $("#pdetails").value, deposit: Number($("#deposit").value) || 0, stages: stages.map((st) => ({ label: st.label, pct: Number(st.pct) || 0 })), validDays: Number($("#valid").value) || 30, term: Math.max(0, Math.floor(Number($("#term").value) || 0)), mix: mixOn() && items.some(isMon), signatory, notes: $("#notes").value, brand: { logo, color: $("#bcolor").value, font: $("#bfont").value, intro: $("#intro").value.trim() }, total: x.total };
     }
 
