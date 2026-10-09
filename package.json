@@ -1,0 +1,8 @@
+{
+  "name": "arg-foundergame",
+  "private": true,
+  "engines": { "node": ">=20" },
+  "dependencies": {
+    "redis": "^4.7.0"
+  }
+}
