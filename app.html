@@ -111,6 +111,15 @@
         <label>Valid for (days)<input id="valid" type="number" min="1" max="365" step="1" value="30" /></label>
         <label style="flex:2 1 220px">Notes<input id="notes" value="Thank you for your business." /></label>
       </div>
+      <div style="margin-top:12px">
+        <div class="row" style="align-items:center"><b style="font-size:.9rem">Payment stages</b>
+          <button class="chip" type="button" data-stages="30:Deposit|60:On installation|10:On grid connection">30 / 60 / 10</button>
+          <button class="chip" type="button" data-stages="50:Deposit|50:On completion">50 / 50</button>
+          <button class="chip" type="button" data-stages="">None</button>
+          <button class="chip" type="button" id="add-stage" aria-label="Add payment stage">+ Add stage</button></div>
+        <div id="stages"></div>
+        <p id="stage-msg" class="muted" style="margin:4px 0 0"></p>
+      </div>
 
       <div class="totals">
         <div><span class="muted">Subtotal</span><span id="sub"></span></div>
@@ -119,6 +128,7 @@
         <div class="grand"><span class="muted" style="font-size:1rem;font-weight:400">Total</span><span id="total"></span></div>
         <div id="deprow" hidden><span class="muted">Deposit due</span><span id="depv"></span></div>
         <div id="balrow" hidden><span class="muted">Balance due</span><span id="balv"></span></div>
+        <div id="stagesum" style="display:grid;gap:2px;justify-items:end"></div>
       </div>
 
       <p id="msg" role="status" aria-live="polite" style="color:#f5c451;min-height:1.2em;margin:8px 0 0"></p>
@@ -163,12 +173,31 @@
       "IT / software": { seller: "BrightOps IT", client: "Harbor Logistics", tax: 8.5, items: [["Onboarding & setup", 1, 3500], ["User licenses (per seat / yr)", 45, 240], ["Data migration", 1, 2200], ["Premium support (per month)", 12, 400]] },
       "Events / catering": { seller: "Golden Fork Events", client: "Lumen Labs", tax: 8.5, items: [["Dinner, 3 courses (per guest)", 120, 68], ["Open bar, 3 hours (per guest)", 120, 32], ["Event staff (per person)", 10, 280], ["Venue styling & rentals", 1, 2600]] },
       "Cleaning / home services": { seller: "Sparkle Pro", client: "Maple Office Park", tax: 0, items: [["Office cleaning visit", 12, 340], ["Deep clean (quarterly)", 1, 1200], ["Window washing", 2, 450], ["Supplies & consumables", 12, 45]] },
+      "Roofing / solar (NZ)": { seller: "Kauri Ridge Roofing & Solar", client: "", tax: 15, currency: "NZD", incl: true, method: "Direct debit", stages: [[30, "Deposit"], [60, "On installation"], [10, "On grid connection"]], items: [["6.6 kW solar system (16 × 410 W panels)", 1, 9800], ["5 kW hybrid inverter", 1, 3200], ["Racking & roof fixings", 1, 1100], ["Installation labour (hours)", 16, 95], ["Grid connection & compliance certificate", 1, 650]] },
       "Trades / contractor": { seller: "Ridgeline Builders", client: "The Patel Residence", tax: 7.25, items: [["Materials: framing & drywall", 1, 6400], ["Labor (hours)", 120, 85], ["Electrical subcontract", 1, 3200], ["Permits & inspection", 1, 900], ["Waste removal", 1, 650]] },
     };
     let industry = "Agency / consulting";
     let items = [];
 
     const r2 = (n) => Math.round(n * 100) / 100;
+    let stages = [];
+    function stageAmounts(total, list) {
+      // Each stage = total × %; the last stage absorbs cent rounding so stages sum exactly to the total.
+      let used = 0;
+      return list.map((st, i) => {
+        const amt = i === list.length - 1 && Math.abs(list.reduce((a, b) => a + b.pct, 0) - 100) < 0.001 ? r2(total - used) : r2(total * st.pct / 100);
+        used = r2(used + amt);
+        return { ...st, amount: amt };
+      });
+    }
+    function renderStages() {
+      $("#stages").innerHTML = stages.map((st, k) => `<div class="row" style="margin-top:6px;align-items:center">
+        <label style="flex:3 1 160px">Stage ${k + 1} label<input data-s="${k}" data-f="label" aria-label="Stage ${k + 1} label" value="${esc(st.label)}" /></label>
+        <label style="flex:1 1 70px">%<input data-s="${k}" data-f="pct" aria-label="Stage ${k + 1} percent" type="number" min="0" max="100" step="any" value="${st.pct}" /></label>
+        <span data-samt="${k}" style="flex:1 1 90px;text-align:right;padding-bottom:10px"></span>
+        <button class="x" data-sdel="${k}" type="button" aria-label="Remove stage ${k + 1}" title="Remove stage">×</button></div>`).join("");
+      recalc();
+    }
     function totalsFor(q) {
       const sub = q.items.reduce((s, i) => s + i.qty * i.price, 0);
       const d = sub * (q.discount || 0) / 100;
@@ -188,7 +217,12 @@
       $("#taxv").textContent = (x.incl ? "incl. " : "") + money(x.t); $("#total").textContent = money(x.total);
       $("#deprow").hidden = $("#balrow").hidden = !x.dep;
       $("#depv").textContent = money(x.dep); $("#balv").textContent = money(x.bal);
-      document.querySelectorAll("[data-amt]").forEach((el) => { const i = items[el.dataset.amt]; el.textContent = money(i.qty * i.price); });
+      const sa = stageAmounts(x.total, stages);
+      sa.forEach((st, k) => { const el = document.querySelector(`[data-samt="${k}"]`); if (el) el.textContent = money(st.amount); });
+      $("#stagesum").innerHTML = sa.map((st) => `<div style="display:flex;gap:24px"><span class="muted">${esc(st.label || "Stage")} (${st.pct}%)</span><span>${money(st.amount)}</span></div>`).join("");
+      const pctSum = stages.reduce((a, b) => a + (Number(b.pct) || 0), 0);
+      $("#stage-msg").textContent = stages.length && Math.abs(pctSum - 100) > 0.001 ? `Stages add up to ${pctSum}%. They should total 100%.` : "";
+      document.querySelectorAll("[data-amt]").forEach((el) => { const i = items[el.dataset.amt]; if (i) el.textContent = money(i.qty * i.price); });
     }
     function render() {
       const adv = $("#adv").checked;
@@ -208,6 +242,9 @@
       industry = name; const t = TEMPLATES[name];
       items = t.items.map(([desc, qty, price]) => ({ desc, qty, price }));
       $("#seller").value = t.seller; $("#client").value = t.client; $("#tax").value = t.tax; $("#discount").value = 0;
+      $("#cur").value = t.currency || "USD"; $("#incl").value = t.incl ? "1" : "0";
+      if (t.method) $("#pmethod").value = t.method;
+      stages = (t.stages || []).map(([pct, label]) => ({ pct, label })); renderStages();
       document.querySelectorAll(".chip[data-t]").forEach((c) => c.classList.toggle("on", c.dataset.t === name));
       render(); $("#room").innerHTML = '<p class="muted" style="margin-top:20px">Run <b>Test with AI buyers</b> to see who signs, who pushes back, and the best price.</p>';
     }
@@ -227,6 +264,16 @@
     $("#rows").addEventListener("click", (e) => { if (e.target.dataset.del != null) { items.splice(e.target.dataset.del, 1); render(); } });
     $("#add").onclick = () => { items.push({ desc: "", qty: 1, price: 0 }); render(); const ins = document.querySelectorAll('#rows input[data-f="desc"]'); ins[ins.length - 1].focus(); };
     $("#adv").addEventListener("change", render);
+    $("#stages").addEventListener("input", (e) => {
+      const k = e.target.dataset.s; if (k == null) return;
+      stages[k][e.target.dataset.f] = e.target.dataset.f === "pct" ? Math.max(0, Number(e.target.value) || 0) : e.target.value; recalc();
+    });
+    $("#stages").addEventListener("click", (e) => { if (e.target.dataset.sdel != null) { stages.splice(e.target.dataset.sdel, 1); renderStages(); } });
+    document.querySelectorAll("[data-stages]").forEach((b) => b.onclick = () => {
+      stages = b.dataset.stages ? b.dataset.stages.split("|").map((x) => { const [pct, label] = x.split(":"); return { pct: Number(pct), label }; }) : [];
+      renderStages();
+    });
+    $("#add-stage").onclick = () => { stages.push({ pct: Math.max(0, 100 - stages.reduce((a, b) => a + b.pct, 0)), label: "" }); renderStages(); const ins = document.querySelectorAll('#stages input[data-f="label"]'); ins[ins.length - 1].focus(); };
     ["#discount", "#tax", "#cur", "#incl", "#deposit"].forEach((s) => $(s).addEventListener("input", () => { recalc(); document.querySelectorAll("[data-amt]").length && recalc(); }));
 
     $("#draft").onclick = async () => {
@@ -247,7 +294,7 @@
 
     function quote() {
       const x = totals();
-      return { seller: $("#seller").value, client: $("#client").value, industry, items, discount: Number($("#discount").value) || 0, tax: Number($("#tax").value) || 0, taxIncluded: x.incl, currency: $("#cur").value, terms: $("#terms").value, method: $("#pmethod").value, payDetails: $("#pdetails").value, deposit: Number($("#deposit").value) || 0, validDays: Number($("#valid").value) || 30, notes: $("#notes").value, total: x.total };
+      return { seller: $("#seller").value, client: $("#client").value, industry, items, discount: Number($("#discount").value) || 0, tax: Number($("#tax").value) || 0, taxIncluded: x.incl, currency: $("#cur").value, terms: $("#terms").value, method: $("#pmethod").value, payDetails: $("#pdetails").value, deposit: Number($("#deposit").value) || 0, stages: stages.map((st) => ({ label: st.label, pct: Number(st.pct) || 0 })), validDays: Number($("#valid").value) || 30, notes: $("#notes").value, total: x.total };
     }
 
     $("#simulate").onclick = async () => {
@@ -314,6 +361,11 @@
           <tr><td><b>Total</b></td><td class="r"><b id="q-total" style="font-size:1.3em">${money(x.total)}</b></td></tr>
           ${x.dep ? `<tr><td>Deposit due (${q.deposit}%)</td><td class="r" id="q-deposit">${money(x.dep)}</td></tr><tr><td>Balance due</td><td class="r" id="q-balance">${money(x.bal)}</td></tr>` : ""}
         </tbody></table>
+        ${(q.stages || []).length ? `<h3 style="margin:16px 0 0;color:#111">Payment schedule</h3>
+        <table id="q-stages"><thead><tr><th>Stage</th><th class="r">%</th><th class="r">Amount</th></tr></thead><tbody>
+          ${stageAmounts(x.total, q.stages).map((st, i) => `<tr><td>${i + 1}. ${esc(st.label || "Stage " + (i + 1))}</td><td class="r">${st.pct}%</td><td class="r" data-stage-amount="${i}">${money(st.amount)}</td></tr>`).join("")}
+          <tr><td><b>Total</b></td><td class="r"><b>${q.stages.reduce((a, b) => a + b.pct, 0)}%</b></td><td class="r"><b>${money(x.total)}</b></td></tr>
+        </tbody></table>` : ""}
         <p><b>Payment terms:</b> ${esc(q.terms)}<br><b>Payment method:</b> <span id="q-method">${esc(q.method)}</span>${q.payDetails ? ` (${esc(q.payDetails)})` : ""}<br><b>Notes:</b> ${esc(q.notes)}</p>
         <div id="accept-box" style="margin-top:28px;border:2px dashed #bbb;border-radius:10px;padding:16px">
           <p style="margin:0 0 4px"><b>Status:</b> <span id="q-status" style="font-weight:700;color:#b45309">PENDING ACCEPTANCE</span></p>
