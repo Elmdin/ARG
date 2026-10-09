@@ -95,6 +95,34 @@ module.exports = async (req, res) => {
       if (!(cur.ingredients || []).some((i) => i.name === ing)) return res.status(404).json({ error: "Add that ingredient to the list first." });
       p.parts = p.parts.filter(([n]) => n !== ing);
       if (qty > 0) p.parts.push([ing, qty]);
+    } else if (b.action === "import") {
+      // Bulk paste. Ingredients: "name, unit, price" per line. Recipes: "item, price per head, ingredient qty; ingredient qty; ...".
+      const lines = (t) => String(t || "").split(/\r?\n/).map((l) => l.trim()).filter((l) => l && !l.startsWith("#"));
+      const ings = cur.ingredients || [];
+      let ni = 0, np = 0;
+      for (const l of lines(b.ingredients)) {
+        const [name, unit, price] = l.split(",").map((x) => x.trim());
+        if (!name || isNaN(Number(price))) continue;
+        const ex = ings.find((i) => i.name.toLowerCase() === name.toLowerCase());
+        if (ex) { ex.price = Number(price); if (unit) ex.unit = unit; } else ings.push({ name, unit: unit || "kg", price: Number(price) });
+        ni++;
+      }
+      cur.ingredients = ings;
+      const errors = [];
+      for (const l of lines(b.recipes)) {
+        const [name, price, ...rest] = l.split(",");
+        const parts = rest.join(",").split(";").map((x) => x.trim()).filter(Boolean).map((x) => { const m = x.match(/^(.*\S)\s+([\d.]+)$/); return m ? [m[1], Number(m[2])] : null; });
+        if (!clean(name) || parts.some((x) => !x)) { errors.push(l.slice(0, 60)); continue; }
+        const fixed = parts.map(([n, q]) => { const i = ings.find((z) => z.name.toLowerCase() === n.toLowerCase()); return i ? [i.name, q] : null; });
+        if (fixed.some((x) => !x)) { errors.push(l.slice(0, 60) + " (unknown ingredient)"); continue; }
+        const plist = cur.platters || [];
+        const ex = plist.find((x) => x.name.toLowerCase() === clean(name, 80).toLowerCase());
+        if (ex) { ex.parts = fixed; if (price && !isNaN(Number(price))) ex.price = Number(price); }
+        else plist.push({ name: clean(name, 80), price: Number(price) || 0, priceSet: "imported", parts: fixed });
+        cur.platters = plist.slice(0, 1000);
+        np++;
+      }
+      cur.lastImport = { ingredients: ni, recipes: np, errors: errors.slice(0, 10) };
     } else if (b.action === "floor") {
       cur.floor = Math.min(Math.max(Number(b.floor) || 0, 0), 90);
     } else return res.status(400).json({ error: "Unknown action." });
