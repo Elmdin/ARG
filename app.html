@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Quotax · Quote builder</title>
+  <title>QuoteCraft · Quote builder by Team Quotax</title>
   <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
   <link rel="stylesheet" href="styles.css" />
   <style>
@@ -59,12 +59,12 @@
 <body>
   <header class="nav">
     <div class="wrap nav-in">
-      <a class="brand" href="/app.html">Quotax</a>
-      <nav><a href="/home.html">About</a><a href="/home.html#pricing">Pricing</a><a href="/home.html#loi" class="btn btn-sm">Sign LOI</a></nav>
+      <a class="brand" href="/app.html">QuoteCraft <span style="font-weight:400;font-size:.8rem;color:var(--muted)">by Quotax</span></a>
+      <nav><a href="/home.html">About</a><a href="/home.html#loi" class="btn btn-sm">Sign LOI</a></nav>
     </div>
   </header>
 
-  <noscript><p class="wrap">Quotax needs JavaScript enabled to build quotes.</p></noscript>
+  <noscript><p class="wrap">QuoteCraft needs JavaScript enabled to build quotes.</p></noscript>
   <main class="wrap app">
     <section class="card" style="padding:20px">
       <h2 style="margin-bottom:6px">1 · Build the quote</h2>
@@ -81,7 +81,9 @@
       <div class="row" style="margin-top:12px">
         <label>Your company<input id="seller" value="Northwind Studio" /></label>
         <label>Client<input id="client" value="Acme Dental" /></label>
+        <label style="flex:0 1 120px">Guests<input id="guests" type="number" min="0" step="1" value="" placeholder="e.g. 400" /></label>
       </div>
+      <p id="guest-msg" class="muted" style="margin:4px 0 0;font-size:.8rem" hidden>Lines ticked <b>Per guest</b> use the guest count as their quantity. Change the guests and the whole quote rescales.</p>
 
       <label class="muted" style="display:flex;gap:8px;align-items:center;margin-top:12px;font-size:.85rem"><input type="checkbox" id="adv" style="width:auto;margin:0" /> Show sections and cost + markup (internal only, hidden on the customer's quote)</label>
       <div style="overflow-x:auto"><table class="items">
@@ -92,7 +94,8 @@
 
       <div class="row" style="margin-top:14px">
         <label>Discount %<input id="discount" type="number" min="0" max="100" step="0.5" value="0" /></label>
-        <label>Tax %<input id="tax" type="number" min="0" max="50" step="0.25" value="8.5" /></label>
+        <label>Tax name<select id="taxname"><option value="">Auto</option><option>GST</option><option>VAT</option><option>Sales tax</option><option>Tax</option></select></label>
+        <label><span id="taxpct-l">Tax</span> %<input id="tax" type="number" min="0" max="50" step="0.25" value="8.5" /></label>
         <label>Currency<select id="cur">
           <option>USD</option><option>CAD</option><option>AUD</option><option>NZD</option><option>EUR</option><option>GBP</option><option>PHP</option><option>KES</option><option>BRL</option><option>SGD</option><option>AED</option>
         </select></label>
@@ -125,7 +128,7 @@
       <div class="totals">
         <div><span class="muted">Subtotal</span><span id="sub"></span></div>
         <div><span class="muted">Discount</span><span id="disc"></span></div>
-        <div><span class="muted">Tax</span><span id="taxv"></span></div>
+        <div><span class="muted" id="taxv-l">Tax</span><span id="taxv"></span></div>
         <div class="grand"><span class="muted" style="font-size:1rem;font-weight:400">Total</span><span id="total"></span></div>
         <div id="deprow" hidden><span class="muted">Deposit due</span><span id="depv"></span></div>
         <div id="balrow" hidden><span class="muted">Balance due</span><span id="balv"></span></div>
@@ -133,7 +136,7 @@
       </div>
 
       <div id="margin-box" hidden class="row" style="margin-top:10px;align-items:center">
-        <label style="flex:0 1 140px">Target margin %<input id="target" type="number" min="0" max="95" step="1" value="25" aria-label="Target margin percent" /></label>
+        <label style="flex:0 1 170px">Minimum margin % (this bid)<input id="target" type="number" min="0" max="95" step="1" value="25" aria-label="Minimum margin percent for this bid" /></label>
         <div id="margin-read" style="flex:1 1 200px;padding-bottom:8px"></div>
       </div>
       <div id="missed" hidden role="region" aria-label="Missed anything?" style="margin-top:12px;border:1px solid #6b5313;background:#2a2312;border-radius:10px;padding:12px">
@@ -163,9 +166,9 @@
       <button class="btn btn-ghost" id="share" type="button">🔗 Copy share link</button>
       <a class="btn btn-ghost" id="back" href="/app.html" hidden>Build your own quote</a>
     </div>
-    <div id="share-box" hidden style="margin-top:8px"><label class="muted" style="font-size:.85rem">Share link (no login needed, opens this quote with the Accept section)<input id="share-url" readonly aria-label="Share link" /></label><p id="share-msg" class="muted" style="margin:4px 0 0"></p></div>
+    <div id="share-box" hidden style="margin-top:8px"><label class="muted" style="font-size:.85rem">Share link (no login needed, opens this quote with the Accept section)<input id="share-url" readonly aria-label="Share link" /></label><p id="share-msg" class="muted" style="margin:4px 0 0"></p><div class="actions" style="margin:8px 0 0"><a class="btn btn-ghost btn-sm" id="share-sms" href="#">💬 Text link</a><a class="btn btn-ghost btn-sm" id="share-mail" href="#">✉️ Email link</a></div></div>
   </section>
-  <footer class="wrap foot">Team <b>Quotax</b> · Quotax quote builder · <a href="/deals.html">Deals</a></footer>
+  <footer class="wrap foot">Team <b>Quotax</b> · QuoteCraft quote builder · <a href="/deals.html">Deals</a></footer>
 
   <script>
   (function () {
@@ -190,12 +193,21 @@
         checklist: [["Disposal / haul-off (load)", 2, 425, "disposal|haul|dump|removal"], ["Extra pavers waste allowance 10% (sq ft)", 45, 6.5, "waste|allowance|extra paver|overage"], ["Extra skid-steer day (contingency)", 1, 375, "extra skid|skid-steer day (contingency)|contingency"], ["Delivery / freight", 1, 250, "deliver|freight|trucking"], ["Edging / restraint (linear ft)", 90, 4.25, "edging|restraint"], ["Permits / utility locate", 1, 150, "permit|locate|811"]] },
       "Electrical (AU)": { seller: "Tallowwood Electrical", client: "", tax: 10, currency: "AUD", incl: false, method: "Card", items: [["Switchboard upgrade (incl. RCBOs)", 1, 2400], ["Power points, double (supply + install)", 18, 95], ["LED downlights (supply + install)", 24, 68], ["Cabling & conduit (m)", 220, 4.8], ["Labour (hours)", 26, 98]],
         checklist: [["Certificate of Electrical Safety / compliance", 1, 180, "certificate|compliance|ces|ccew|permit"], ["Travel / call-out", 1, 120, "travel|call-out|callout"], ["Small resi items (clips, junction boxes, glands)", 1, 160, "small|clips|junction|sundries|consumables"], ["Test & tag / commissioning", 1, 140, "test|commission"], ["Waste removal", 1, 90, "waste|rubbish|disposal"], ["Patching / make-good", 1, 220, "patch|make-good|make good"]] },
+      "Catering (per guest)": { seller: "Larder & Lane Hospitality", client: "", tax: 8.5, guests: 400, stages: [[50, "Deposit"], [50, "On event day"]], items: [["Lunch entrée (per guest)", 0, 14.5, "", 6.2, true], ["Sides & salads (per guest)", 0, 5.5, "", 2.1, true], ["Dessert (per guest)", 0, 4, "", 1.5, true], ["Beverages (per guest)", 0, 3.5, "", 1.2, true], ["Service staff (per 25 guests, 5 hrs)", 16, 175, "", 120], ["Delivery & setup", 1, 450, "", 260]],
+        checklist: [["Disposables / plates & cutlery (per guest)", 1, 0.9, "disposable|plate|cutlery"], ["Dietary / allergen meals", 1, 180, "dietary|allergen|vegan|gluten"], ["Equipment hire (chafers, linens)", 1, 320, "equipment|hire|chafer|linen"], ["Cleanup & waste", 1, 200, "clean|waste"]] },
+      "Commercial fit-out": { seller: "Plumbline Interiors", client: "", tax: 0, terms: "Net 45", method: "ACH", target: 18, adv: true, items: [["Demo & make-safe", 1, 8600, "Demolition", 6400], ["Metal stud framing (sq ft)", 4200, 6.4, "Framing & drywall", 4.9], ["Drywall, tape & finish (sq ft)", 9800, 3.1, "Framing & drywall", 2.35], ["Electrical rough-in & fixtures", 1, 46000, "MEP", 39000], ["HVAC distribution & diffusers", 1, 38500, "MEP", 33200], ["Carpet tile & LVT (sq ft)", 5200, 7.8, "Finishes", 5.9], ["Paint (sq ft wall)", 14000, 1.25, "Finishes", 0.82], ["Millwork: reception & pantry", 1, 24000, "Finishes", 19500], ["General conditions (weeks)", 10, 4200, "GC & fees", 3300]],
+        checklist: [["Permits & inspections", 1, 3200, "permit|inspection"], ["Final clean", 1, 2400, "clean"], ["Dumpsters / waste haul", 4, 650, "dumpster|waste|haul"], ["After-hours / phasing premium", 1, 5000, "after-hours|after hours|phasing|overtime"], ["Contingency", 1, 9000, "contingency"]] },
       "Trades / contractor": { seller: "Ridgeline Builders", client: "The Patel Residence", tax: 7.25, items: [["Materials: framing & drywall", 1, 6400], ["Labor (hours)", 120, 85], ["Electrical subcontract", 1, 3200], ["Permits & inspection", 1, 900], ["Waste removal", 1, 650]] },
     };
     let industry = "Agency / consulting";
     let items = [];
 
     const r2 = (n) => Math.round(n * 100) / 100;
+    const guestCount = () => Math.max(0, Math.floor(Number($("#guests").value) || 0));
+    function applyGuests() { const g = guestCount(); items.forEach((i) => { if (i.pg) i.qty = g; }); }
+    // GST/VAT/Sales tax by currency unless the user picks one.
+    const TAXNAME = { NZD: "GST", AUD: "GST", SGD: "GST", CAD: "GST", EUR: "VAT", GBP: "VAT", AED: "VAT", PHP: "VAT", KES: "VAT", USD: "Sales tax" };
+    const taxName = (cur, pick) => pick || TAXNAME[cur] || "Tax";
     let stages = [];
     let checklist = [], dismissed = new Set();
     const covered = (c) => c[3].split("|").some((kw) => items.some((i) => (i.desc || "").toLowerCase().includes(kw.toLowerCase())));
@@ -209,7 +221,8 @@
       });
       if (!(Number($("#tax").value) > 0)) out.push({ kind: "tax", text: "Tax / GST is 0%. Is that right for this job?" });
       const m = margin();
-      if (m && m.pct < m.target) out.push({ kind: "margin", text: `Margin ${m.pct.toFixed(1)}% is below your ${m.target}% target. Underbid risk of about ${money(m.shortfall)}.` });
+      if (m && m.pct < m.target) out.push({ kind: "margin", text: `<b style="color:#ff7a7a">THIN JOB:</b> margin ${m.pct.toFixed(1)}% is below this bid's ${m.target}% floor. Underbid risk of about ${money(m.shortfall)}.` });
+      if (m) m.sections.filter((z) => z.pct < m.target).forEach((z) => out.push({ kind: "margin", text: `Section <b>${esc(z.name)}</b> margin ${z.pct.toFixed(1)}% is below the ${m.target}% floor` }));
       return out;
     }
     function margin() {
@@ -218,7 +231,10 @@
       const f = 1 - (Number($("#discount").value) || 0) / 100;
       const rev = costed.reduce((a, i) => a + i.qty * i.price * f, 0), cost = costed.reduce((a, i) => a + i.qty * i.cost, 0);
       const pct = rev ? (rev - cost) / rev * 100 : 0, target = Number($("#target").value) || 0;
-      return { pct, target, rev, cost, shortfall: Math.max(0, cost / (1 - target / 100) - rev), uncosted: items.length - costed.length };
+      const secs = {};
+      costed.forEach((i) => { const n = (i.section || "").trim(); if (!n) return; const z = (secs[n] = secs[n] || { rev: 0, cost: 0 }); z.rev += i.qty * i.price * f; z.cost += i.qty * i.cost; });
+      const sections = Object.entries(secs).map(([name, z]) => ({ name, pct: z.rev ? (z.rev - z.cost) / z.rev * 100 : 0 }));
+      return { pct, target, rev, cost, sections, shortfall: Math.max(0, cost / (1 - target / 100) - rev), uncosted: items.length - costed.length };
     }
     function renderChecks() {
       const list = issues();
@@ -228,7 +244,7 @@
       $("#covered").textContent = checklist.length ? `Checklist: ${ok.length}/${checklist.length} covered${ok.length ? ` (✓ ${ok.join(", ")})` : ""}` : "";
       const m = margin();
       $("#margin-box").hidden = !($("#adv").checked || m);
-      $("#margin-read").innerHTML = m ? `Margin <b style="color:${m.pct < m.target ? "#ff7a7a" : "#3ddc97"}">${m.pct.toFixed(1)}%</b> on costed lines (cost ${money(m.cost)}, price ${money(m.rev)})${m.uncosted ? ` · ${m.uncosted} line(s) without cost` : ""}` : `<span class="muted">Enter costs to see your margin.</span>`;
+      $("#margin-read").innerHTML = m ? `<span id="margin-flag" style="font-weight:800;padding:2px 10px;border-radius:999px;margin-right:6px;${m.pct < m.target ? "background:#3d1717;color:#ff7a7a\">THIN JOB" : "background:#12392b;color:#3ddc97\">OK"}</span>Margin <b id="margin-pct" style="color:${m.pct < m.target ? "#ff7a7a" : "#3ddc97"}">${m.pct.toFixed(1)}%</b> on costed lines (cost ${money(m.cost)}, price ${money(m.rev)})${m.uncosted ? ` · ${m.uncosted} line(s) without cost` : ""}${m.sections.length ? `<div class="muted" style="font-size:.8rem;margin-top:4px">By section: ${m.sections.map((z) => `<span style="color:${z.pct < m.target ? "#ff7a7a" : "inherit"}">${esc(z.name)} ${z.pct.toFixed(1)}%</span>`).join(" · ")}</div>` : ""}` : `<span class="muted">Enter costs to see your margin.</span>`;
     }
     function stageAmounts(total, list) {
       // Each stage = total × %; the last stage absorbs cent rounding so stages sum exactly to the total.
@@ -264,6 +280,7 @@
       const x = totals();
       $("#sub").textContent = money(x.sub); $("#disc").textContent = "−" + money(x.d);
       $("#taxv").textContent = (x.incl ? "incl. " : "") + money(x.t); $("#total").textContent = money(x.total);
+      const tn = taxName($("#cur").value, $("#taxname").value); $("#taxv-l").textContent = tn; $("#taxpct-l").textContent = tn;
       $("#deprow").hidden = $("#balrow").hidden = !x.dep;
       $("#depv").textContent = money(x.dep); $("#balv").textContent = money(x.bal);
       const sa = stageAmounts(x.total, stages);
@@ -276,13 +293,16 @@
     }
     function render() {
       const adv = $("#adv").checked;
-      $("#thead").innerHTML = `<tr>${adv ? "<th>Section</th>" : ""}<th>Item</th>${adv ? "<th>Cost</th><th>Markup %</th>" : ""}<th>Qty</th><th>Unit price</th><th class="amt">Amount</th><th></th></tr>`;
+      const pgOn = guestCount() > 0 || items.some((i) => i.pg);
+      $("#guest-msg").hidden = !pgOn;
+      $("#thead").innerHTML = `<tr>${adv ? "<th>Section</th>" : ""}<th>Item</th>${adv ? "<th>Cost</th><th>Markup %</th>" : ""}${pgOn ? "<th>Per guest</th>" : ""}<th>Qty</th><th>Unit price</th><th class="amt">Amount</th><th></th></tr>`;
       $("#rows").innerHTML = items.map((i, k) => `<tr>
         ${adv ? `<td class="p"><input data-k="${k}" data-f="section" aria-label="Line ${k + 1} section" placeholder="e.g. Labour" value="${esc(i.section || "")}" /></td>` : ""}
         <td><input data-k="${k}" data-f="desc" name="item-${k + 1}-description" aria-label="Line ${k + 1} description" placeholder="Description" value="${esc(i.desc)}" /></td>
         ${adv ? `<td class="p"><input data-k="${k}" data-f="cost" aria-label="Line ${k + 1} cost" type="number" min="0" step="any" value="${i.cost ?? ""}" /></td>
         <td class="n"><input data-k="${k}" data-f="markup" aria-label="Line ${k + 1} markup percent" type="number" min="0" step="any" value="${i.markup ?? ""}" /></td>` : ""}
-        <td class="n"><input data-k="${k}" data-f="qty" name="item-${k + 1}-quantity" aria-label="Line ${k + 1} quantity" type="number" min="0" step="any" value="${i.qty}" /></td>
+        ${pgOn ? `<td style="text-align:center"><input data-k="${k}" data-f="pg" type="checkbox" aria-label="Line ${k + 1} per guest" ${i.pg ? "checked" : ""} style="width:22px;height:22px;margin:0" /></td>` : ""}
+        <td class="n"><input data-k="${k}" data-f="qty" name="item-${k + 1}-quantity" aria-label="Line ${k + 1} quantity" type="number" min="0" step="any" value="${i.qty}" ${i.pg ? "readonly title=\"Set by guest count\"" : ""} /></td>
         <td class="p"><input data-k="${k}" data-f="price" name="item-${k + 1}-unit-price" aria-label="Line ${k + 1} unit price" type="number" min="0" step="any" value="${i.price}" /></td>
         <td class="amt" data-amt="${k}"></td>
         <td><button class="x" data-del="${k}" title="Remove line ${k + 1}" aria-label="Remove line ${k + 1}" type="button">×</button></td></tr>`).join("");
@@ -290,7 +310,11 @@
     }
     function load(name) {
       industry = name; const t = TEMPLATES[name];
-      items = t.items.map(([desc, qty, price]) => ({ desc, qty, price }));
+      items = t.items.map(([desc, qty, price, section, cost, pg]) => ({ desc, qty, price, ...(section ? { section } : {}), ...(cost ? { cost, markup: r2((price / cost - 1) * 100) } : {}), ...(pg ? { pg: true } : {}) }));
+      $("#guests").value = t.guests || ""; if (t.guests) applyGuests();
+      if (t.terms) $("#terms").value = t.terms;
+      if (t.target) $("#target").value = t.target;
+      $("#adv").checked = !!t.adv; $("#taxname").value = "";
       $("#seller").value = t.seller; $("#client").value = t.client; $("#tax").value = t.tax; $("#discount").value = 0;
       $("#cur").value = t.currency || "USD"; $("#incl").value = t.incl ? "1" : "0";
       if (t.method) $("#pmethod").value = t.method;
@@ -305,6 +329,7 @@
     $("#rows").addEventListener("input", (e) => {
       const k = e.target.dataset.k; if (k == null) return;
       const f = e.target.dataset.f, it = items[k];
+      if (f === "pg") { it.pg = e.target.checked; if (it.pg) it.qty = guestCount(); return render(); }
       it[f] = f === "desc" || f === "section" ? e.target.value : Math.max(0, Number(e.target.value) || 0);
       if (f === "cost" && it.cost > 0 && (it.markup == null || it.markupAuto) && it.price > 0) {
         // No markup typed yet: derive it from the current price instead of overwriting the price.
@@ -320,6 +345,7 @@
     $("#rows").addEventListener("click", (e) => { if (e.target.dataset.del != null) { items.splice(e.target.dataset.del, 1); render(); } });
     $("#add").onclick = () => { items.push({ desc: "", qty: 1, price: 0 }); render(); const ins = document.querySelectorAll('#rows input[data-f="desc"]'); ins[ins.length - 1].focus(); };
     $("#adv").addEventListener("change", render);
+    $("#guests").addEventListener("input", () => { applyGuests(); render(); });
     $("#target").addEventListener("input", renderChecks);
     $("#missed").addEventListener("click", (e) => {
       const a = e.target.dataset.addc, sk = e.target.dataset.skipc;
@@ -336,7 +362,7 @@
       renderStages();
     });
     $("#add-stage").onclick = () => { stages.push({ pct: Math.max(0, 100 - stages.reduce((a, b) => a + b.pct, 0)), label: "" }); renderStages(); const ins = document.querySelectorAll('#stages input[data-f="label"]'); ins[ins.length - 1].focus(); };
-    ["#discount", "#tax", "#cur", "#incl", "#deposit"].forEach((s) => $(s).addEventListener("input", () => { recalc(); document.querySelectorAll("[data-amt]").length && recalc(); }));
+    ["#discount", "#tax", "#cur", "#incl", "#deposit", "#taxname"].forEach((s) => $(s).addEventListener("input", () => { recalc(); document.querySelectorAll("[data-amt]").length && recalc(); }));
 
     $("#draft").onclick = async () => {
       const job = $("#job").value.trim(); if (!job) return $("#job").focus();
@@ -356,7 +382,7 @@
 
     function quote() {
       const x = totals();
-      return { seller: $("#seller").value, client: $("#client").value, industry, items, discount: Number($("#discount").value) || 0, tax: Number($("#tax").value) || 0, taxIncluded: x.incl, currency: $("#cur").value, terms: $("#terms").value, method: $("#pmethod").value, payDetails: $("#pdetails").value, deposit: Number($("#deposit").value) || 0, stages: stages.map((st) => ({ label: st.label, pct: Number(st.pct) || 0 })), validDays: Number($("#valid").value) || 30, notes: $("#notes").value, total: x.total };
+      return { seller: $("#seller").value, client: $("#client").value, industry, items, discount: Number($("#discount").value) || 0, tax: Number($("#tax").value) || 0, taxIncluded: x.incl, currency: $("#cur").value, taxName: taxName($("#cur").value, $("#taxname").value), guests: guestCount(), terms: $("#terms").value, method: $("#pmethod").value, payDetails: $("#pdetails").value, deposit: Number($("#deposit").value) || 0, stages: stages.map((st) => ({ label: st.label, pct: Number(st.pct) || 0 })), validDays: Number($("#valid").value) || 30, notes: $("#notes").value, total: x.total };
     }
 
     $("#simulate").onclick = async () => {
@@ -412,14 +438,14 @@
         : q.items.map(row).join("");
       const validUntil = new Date(q.createdAt); validUntil.setDate(validUntil.getDate() + (q.validDays || 30));
       $("#proposal").innerHTML = `
-        <div class="meta"><div><h1 style="margin:0;color:#111">${esc(q.seller)}</h1><div>Quote for <b id="q-client">${esc(q.client)}</b></div></div>
+        <div class="meta"><div><h1 style="margin:0;color:#111">${esc(q.seller)}</h1><div>Quote for <b id="q-client">${esc(q.client)}</b>${q.guests ? ` · <span id="q-guests">${q.guests} guests</span>` : ""}</div></div>
         <div style="text-align:right"><div><b>Quote #</b> <span id="q-number">${esc(q.no)}</span></div><div><b>Date</b> <span id="q-date">${esc(fmtDate(new Date(q.createdAt)))}</span></div><div><b>Valid until</b> <span id="q-valid">${esc(fmtDate(validUntil))}</span></div><div><b>Currency</b> ${esc(q.currency)}</div></div></div>
         <table><thead><tr><th>Description</th><th class="r">Qty</th><th class="r">Unit price</th><th class="r">Amount</th></tr></thead>
         <tbody>${body}</tbody></table>
         <table style="width:auto;margin-left:auto"><tbody>
           <tr><td>Subtotal</td><td class="r">${money(x.sub)}</td></tr>
           <tr><td>Discount (${q.discount}%)</td><td class="r">−${money(x.d)}</td></tr>
-          <tr><td>Tax (${q.tax}%${x.incl ? ", included" : ""})</td><td class="r">${money(x.t)}</td></tr>
+          <tr><td>${esc(q.taxName || "Tax")} (${q.tax}%${x.incl ? ", included" : ""})</td><td class="r">${money(x.t)}</td></tr>
           <tr><td><b>Total</b></td><td class="r"><b id="q-total" style="font-size:1.3em">${money(x.total)}</b></td></tr>
           ${x.dep ? `<tr><td>Deposit due (${q.deposit}%)</td><td class="r" id="q-deposit">${money(x.dep)}</td></tr><tr><td>Balance due</td><td class="r" id="q-balance">${money(x.bal)}</td></tr>` : ""}
         </tbody></table>
@@ -441,7 +467,7 @@
             <p id="acc-msg" role="status" aria-live="polite" style="color:#b91c1c;margin:8px 0 0;min-height:1em"></p>
           </div>
         </div>
-        <p style="color:#666;font-size:.8em">Prepared with Quotax · Team Quotax</p>`;
+        <p style="color:#666;font-size:.8em">Prepared with QuoteCraft · Team Quotax</p>`;
       $("#accept-btn").onclick = () => {
         const name = $("#acc-name").value.trim(), d = $("#acc-date").value;
         if (!name) { $("#acc-msg").textContent = "Enter the customer's name to accept."; return $("#acc-name").focus(); }
@@ -484,7 +510,10 @@
       const url = location.origin + "/app.html#q=" + encodeURIComponent(encode(data));
       $("#share-url").value = url;
       $("#share-box").hidden = false;
-      $("#share-msg").textContent = "Link ready. Copy it and send it to your customer.";
+      $("#share-msg").textContent = "Link ready. Copy it, or text or email it to your customer.";
+      const msg = `Hi ${current.client}, here is your quote ${current.no} from ${current.seller}. Review and accept it here: ${url}`;
+      $("#share-sms").href = "sms:?&body=" + encodeURIComponent(msg);
+      $("#share-mail").href = "mailto:?subject=" + encodeURIComponent(`Quote ${current.no} from ${current.seller}`) + "&body=" + encodeURIComponent(msg);
       $("#share-url").select();
       try {
         await Promise.race([navigator.clipboard.writeText(url), new Promise((_, rej) => setTimeout(rej, 1500))]);

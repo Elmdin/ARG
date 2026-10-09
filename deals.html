@@ -13,11 +13,12 @@
     if (r.ok) { d = (await r.json()).deals; src = "all devices (shared storage)"; }
   } catch (_) {}
   if (src !== "all devices (shared storage)") { try { d = JSON.parse(localStorage.getItem("deals") || "[]"); } catch (_) {} }
-  d = d.filter(x => x.kind === "loi" || x.kind === "preorder");
-  const lois = d.filter(x => x.kind === "loi"), pre = d.filter(x => x.kind === "preorder");
-  document.getElementById("sum").textContent = `${lois.length} LOIs · ${pre.length} pre-orders`;
+  d = d.filter(x => x.kind === "loi" || x.kind === "preorder" || x.kind === "signed");
+  const lois = d.filter(x => x.kind === "loi"), pre = d.filter(x => x.kind === "preorder"), won = d.filter(x => x.kind === "signed" && !x.tutorial);
+  const arr = won.reduce((a, x) => a + (Number(x.arr) || 0), 0);
+  document.getElementById("sum").textContent = `${won.length} signed customer${won.length === 1 ? "" : "s"} ($${arr.toLocaleString()} ARR) · ${lois.length} LOIs · ${pre.length} pre-orders`;
   document.getElementById("src").textContent = "Source: " + src;
-  document.getElementById("out").textContent = d.map(x => `${x.at}  ${String(x.kind).toUpperCase()} #${x.id}  ${x.company || ""}  ${x.plan || ""} ${x.price || ""} ${x.name || x.email || ""}`).join("\n") || "None yet.";
+  document.getElementById("out").textContent = d.map(x => `${x.at}  ${String(x.kind).toUpperCase()} #${x.id}  ${x.company || ""}  ${x.plan || ""} ${x.price || ""}${x.arr ? " $" + Number(x.arr).toLocaleString() + "/yr" : ""} ${x.name || x.email || ""}${x.tutorial ? " (tutorial, not counted)" : ""}${x.source ? " · " + x.source : ""}`).join("\n") || "None yet.";
   document.getElementById("clear").onclick = () => { if (confirm("Clear deals stored on this device?")) { try { localStorage.removeItem("deals"); } catch (_) {} location.reload(); } };
 })();
 </script></body></html>

@@ -1,6 +1,6 @@
 window.PRESETS = window.PRESETS || {};
 window.PRESETS.quotecraft = {
-  name: "Quotax",
+  name: "QuoteCraft",
   appUrl: "/app.html",
   tagline: "Quotes that win.",
   headline: "Send a priced, customer-ready quote in 2 minutes, already tested on AI buyers.",
@@ -43,7 +43,7 @@ window.PRESETS.quotecraft = {
       "→ Open the full app to edit, test with AI buyers and export a PDF.",
     ].join("\n"),
     systemPrompt:
-      "You are Quotax. Given a job description, output a compact itemized quote in plain text: a header line 'QUOTE · <seller> → <client>', 3-6 aligned line items as 'desc  qty × $unit  $amount' at realistic US rates, then 'Subtotal · Tax 8.5% · TOTAL' with correct arithmetic. End with: '→ Open the full app to test this quote with 6 AI buyer agents and find the best price.' Under 120 words.",
+      "You are QuoteCraft. Given a job description, output a compact itemized quote in plain text: a header line 'QUOTE · <seller> → <client>', 3-6 aligned line items as 'desc  qty × $unit  $amount' at realistic US rates, then 'Subtotal · Tax 8.5% · TOTAL' with correct arithmetic. End with: '→ Open the full app to test this quote with 6 AI buyer agents and find the best price.' Under 120 words.",
   },
   cta: { primary: "Sign a letter of intent", secondary: "Start subscription" },
   loiTerms:
