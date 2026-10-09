@@ -14,6 +14,8 @@ No build step. Pick a preset in `config.js`, push, and it's live.
 
 **Accounts, API keys and settings: see [SETUP.md](SETUP.md).**
 
+**Running several Claude agents at once: see [AGENTS.md](AGENTS.md).**
+
 ## Before 11:00: one-time setup (about 10 min)
 
 1. **Deploy:** go to vercel.com → Add New → Project → import `Elmdin/ARG` → Framework preset **Other** → Deploy. Copy the URL.

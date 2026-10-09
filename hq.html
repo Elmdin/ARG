@@ -16,7 +16,7 @@
 <body><main class="wrap" style="padding:24px 16px 48px">
 <h2 style="margin-bottom:4px">Team Quotax HQ</h2>
 <p style="color:var(--muted);margin:0">Shared by everyone and every Claude session. Live product: <a href="/app.html">arg-foundergame.vercel.app/app.html</a> · <span id="upd"></span></p>
-<div class="tabs"><button data-p="customers" class="on">Customers</button><button data-p="queue">Build queue</button><button data-p="notes">Notes</button><button data-p="agents">For Claude</button></div>
+<div class="tabs"><button data-p="customers" class="on">Customers</button><button data-p="investors">Investors</button><button data-p="convos">Conversations</button><button data-p="queue">Build queue</button><button data-p="notes">Notes</button><button data-p="agents">For Claude</button></div>
 
 <section class="pane on" id="customers">
   <div class="counts" id="counts"></div>
@@ -31,6 +31,40 @@
     <button class="btn" type="submit">Save customer</button>
   </form>
   <div id="clist"></div>
+</section>
+
+<section class="pane" id="investors">
+  <div class="counts" id="icounts"></div>
+  <form class="card form" id="vf" style="max-width:none;margin-top:12px">
+    <div class="grid2">
+      <label>Investor<input name="name" required placeholder="Whale Capital · Sam Lee"></label>
+      <label>Status<select name="status"><option>not contacted</option><option>pitched</option><option>interested</option><option>terms</option><option>closed</option><option>passed</option></select></label>
+      <label>Owner<input name="owner" placeholder="Orri"></label>
+      <label>Amount<input name="amount" placeholder="$50k"></label>
+      <label>Valuation<input name="valuation" placeholder="$2M post"></label>
+      <label>Equity<input name="equity" placeholder="2.5%"></label>
+    </div>
+    <label>Conditions / open questions<textarea name="conditions" rows="2"></textarea></label>
+    <label>Notes<textarea name="notes" rows="2"></textarea></label>
+    <button class="btn" type="submit">Save investor</button>
+  </form>
+  <div id="vlist"></div>
+</section>
+
+<section class="pane" id="convos">
+  <form class="card form" id="lf" style="max-width:none;margin-top:12px">
+    <div class="grid2">
+      <label>Who (customer or investor)<input name="party" required></label>
+      <label>Kind<select name="kind"><option>customer</option><option>investor</option></select></label>
+      <label>Channel<input name="channel" placeholder="game chat / DM / in person"></label>
+      <label>Logged by<input name="author" placeholder="Joseph / Claude sales-A"></label>
+    </div>
+    <label>What was said<textarea name="said" rows="3" required></textarea></label>
+    <label>What we promised (price, feature, deadline, terms)<textarea name="promised" rows="2"></textarea></label>
+    <button class="btn" type="submit">Log conversation</button>
+  </form>
+  <h3>Commitments we made</h3><div id="plist"></div>
+  <h3>Log</h3><div id="llist"></div>
 </section>
 
 <section class="pane" id="queue">
@@ -73,6 +107,10 @@ document.getElementById("agentprompt").textContent =
    - Customer update: ${base}/api/hq?k=${k}&op=customer&name=COMPANY&status=talking&needs=WHAT_THEY_NEED&notes=NOTES&owner=WHO
      (status: not contacted | talking | building | in review | won | lost | skip)
    - Note (dossier summary, investor intel, decision): ${base}/api/hq?k=${k}&op=note&title=TITLE&author=YOUR_ROLE&body=TEXT
+   - Investor update: ${base}/api/hq?k=${k}&op=investor&name=FIRM&status=interested&amount=AMT&valuation=VAL&equity=PCT&conditions=TERMS&owner=WHO
+     (status: not contacted | pitched | interested | terms | closed | passed)
+   - Log EVERY customer/investor exchange: ${base}/api/hq?k=${k}&op=log&party=NAME&kind=customer&said=SUMMARY&promised=ANYTHING_WE_COMMITTED_TO&channel=WHERE&author=YOU
+   - Claim a record before working it (parallel agents): add &agent=YOUR_AGENT_NAME to a customer/investor update. Skip records another agent claimed in the last 15 min.
    - Feature request for the builder: ${base}/api/hq?k=${k}&op=ask&customer=COMPANY&text=EXACT_REQUEST
 3. Or use the forms at ${base}/hq.html?k=${k}
 Live product to send customers: ${base}/app.html
@@ -84,6 +122,8 @@ async function post(body) {
 }
 document.getElementById("cf").onsubmit = (e) => { e.preventDefault(); post({ type: "customer", ...Object.fromEntries(new FormData(e.target)) }); e.target.reset(); };
 document.getElementById("af").onsubmit = (e) => { e.preventDefault(); post({ type: "ask", ...Object.fromEntries(new FormData(e.target)) }); e.target.reset(); };
+document.getElementById("vf").onsubmit = (e) => { e.preventDefault(); post({ type: "investor", ...Object.fromEntries(new FormData(e.target)) }); e.target.reset(); };
+document.getElementById("lf").onsubmit = (e) => { e.preventDefault(); post({ type: "log", ...Object.fromEntries(new FormData(e.target)) }); e.target.reset(); };
 document.getElementById("nf").onsubmit = (e) => { e.preventDefault(); post({ type: "note", ...Object.fromEntries(new FormData(e.target)) }); e.target.reset(); };
 async function load() {
   const r = await fetch(api);
@@ -94,7 +134,14 @@ async function load() {
   const cs = s.customers.slice().sort((a,b) => order.indexOf(a.status) - order.indexOf(b.status));
   const cnt = {}; s.customers.forEach((c) => cnt[c.status] = (cnt[c.status] || 0) + 1);
   document.getElementById("counts").innerHTML = Object.entries(cnt).map(([k,v]) => `<span>${esc(k)}: <b>${v}</b></span>`).join("") || "<span>No customers yet</span>";
-  document.getElementById("clist").innerHTML = cs.map((c) => `<div class="item"><h4><span>${esc(c.name)}${c.owner ? ` <span style="color:var(--muted);font-weight:400">· ${esc(c.owner)}</span>` : ""}</span><span class="st ${esc(c.status)}">${esc(c.status)}</span></h4>${c.needs ? `<p><b>Needs:</b> ${esc(c.needs)}</p>` : ""}${c.notes ? `<p>${esc(c.notes)}</p>` : ""}</div>`).join("");
+  document.getElementById("clist").innerHTML = cs.map((c) => `<div class="item"><h4><span>${esc(c.name)}${c.owner ? ` <span style="color:var(--muted);font-weight:400">· ${esc(c.owner)}</span>` : ""}${c.agent ? ` <span style="color:var(--muted);font-weight:400">· 🤖 ${esc(c.agent)}</span>` : ""}</span><span class="st ${esc(c.status)}">${esc(c.status)}</span></h4>${c.needs ? `<p><b>Needs:</b> ${esc(c.needs)}</p>` : ""}${c.notes ? `<p>${esc(c.notes)}</p>` : ""}</div>`).join("");
+  const inv = s.investors || [], logs = s.convos || [];
+  const ic = {}; inv.forEach((v) => ic[v.status] = (ic[v.status] || 0) + 1);
+  document.getElementById("icounts").innerHTML = Object.entries(ic).map(([k,v]) => `<span>${esc(k)}: <b>${v}</b></span>`).join("") || "<span>No investors yet</span>";
+  document.getElementById("vlist").innerHTML = inv.map((v) => `<div class="item"><h4><span>${esc(v.name)}${v.owner ? ` <span style="color:var(--muted);font-weight:400">· ${esc(v.owner)}</span>` : ""}${v.agent ? ` <span style="color:var(--muted);font-weight:400">· 🤖 ${esc(v.agent)}</span>` : ""}</span><span class="st">${esc(v.status)}</span></h4>${["amount","valuation","equity","conditions","notes"].filter((f) => v[f]).map((f) => `<p><b>${f}:</b> ${esc(v[f])}</p>`).join("")}</div>`).join("");
+  const row = (l) => `<div class="item"><h4><span>${esc(l.party)} <span style="color:var(--muted);font-weight:400">· ${esc(l.kind)}${l.channel ? " · " + esc(l.channel) : ""}${l.author ? " · " + esc(l.author) : ""}</span></span><span style="color:var(--muted);font-weight:400;font-size:.8rem">${new Date(l.at).toLocaleTimeString()}</span></h4><pre>${esc(l.said)}</pre>${l.promised ? `<p><b>Promised:</b> ${esc(l.promised)}</p>` : ""}</div>`;
+  document.getElementById("plist").innerHTML = logs.filter((l) => l.promised).reverse().map(row).join("") || "<p>None logged.</p>";
+  document.getElementById("llist").innerHTML = logs.slice().reverse().map(row).join("") || "<p>No conversations logged.</p>";
   document.getElementById("alist").innerHTML = s.asks.slice().reverse().map((a) => `<div class="item"><h4><span>#${a.id} ${esc(a.customer || "Customer")}</span><span class="st ${esc(a.status)}">${a.status === "live" ? "✅ live, send for review" : esc(a.status)}</span></h4>${a.note ? `<p><b>Builder:</b> ${esc(a.note)}</p>` : ""}<pre>${esc(a.text)}</pre></div>`).join("") || "<p>Queue empty.</p>";
   document.getElementById("nlist").innerHTML = s.notes.slice().reverse().map((n) => `<div class="item"><h4><span>${esc(n.title)}</span><span style="color:var(--muted);font-weight:400;font-size:.8rem">${esc(n.author)} · ${new Date(n.at).toLocaleTimeString()}</span></h4><pre>${esc(n.body)}</pre></div>`).join("") || "<p>No notes yet.</p>";
 }
