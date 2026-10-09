@@ -49,6 +49,9 @@
     "Labour (hours)": "Mano de obra (horas)", "Labor (hours)": "Mano de obra (horas)",
     "Materials: framing & drywall": "Materiales: estructura y tablaroca", "Electrical subcontract": "Subcontrato eléctrico",
     "Permits & inspection": "Permisos e inspección", "Waste removal": "Retiro de residuos",
+    "Tuition, per term": "Colegiatura, por periodo", "Lunch programme, per term": "Programa de almuerzo, por periodo",
+    "Transport, per term": "Transporte, por periodo", "Activity & materials fee, per term": "Cuota de actividades y materiales, por periodo",
+    "Start of term": "Inicio del periodo", "Mid-term": "Mitad del periodo", "Paybill 400200, Account: student name": "Paybill 400200, Cuenta: nombre del estudiante",
   };
   // Checklist: [Spanish name, Spanish keywords that count the item as already covered]
   const CHECKS = {
@@ -82,7 +85,7 @@
   function tpl(T) {
     if (!es) return T;
     Object.values(T).forEach((t) => {
-      t.seller = it(t.seller); t.client = it(t.client);
+      t.seller = it(t.seller); t.client = it(t.client); if (t.payDetails) t.payDetails = it(t.payDetails);
       t.items.forEach((row) => { row[0] = it(row[0]); if (row[3] && row[3].section) row[3].section = it(row[3].section); });
       (t.catalog || []).forEach((c) => { c[0] = it(c[0]); });
       (t.stages || []).forEach((s) => { s[1] = it(s[1]); });
@@ -102,7 +105,7 @@
     "Events / catering": "Eventos / catering", "Interiors / fit-out": "Interiores / acondicionamiento",
     "Creative studio / proposal": "Estudio creativo / propuesta", "Telecom / enterprise (SG)": "Telecom / empresas (SG)",
     "Cleaning / home services": "Limpieza / servicios del hogar", "Roofing / solar (NZ)": "Techos / solar (NZ)",
-    "Landscape / hardscape": "Paisajismo / obra exterior", "Electrical (AU)": "Eléctrico (AU)", "Trades / contractor": "Oficios / contratista",
+    "Landscape / hardscape": "Paisajismo / obra exterior", "Electrical (AU)": "Eléctrico (AU)", "Education / school fees (KES)": "Educación / colegiaturas (KES)", "Trades / contractor": "Oficios / contratista",
     "Describe the job (optional)": "Describa el trabajo (opcional)", "✨ AI draft": "✨ Borrador con IA", "Drafting…": "Redactando…",
     "Your company": "Su empresa", "Client": "Cliente", "Guests (catering)": "Invitados (catering)",
     "Logo (optional)": "Logotipo (opcional)", "Brand color": "Color de marca", "Font": "Tipografía",
