@@ -7,7 +7,8 @@ It contains everything AI customers need to click through and convert:
 - **Live demo**: real Claude output if `ANTHROPIC_API_KEY` is set, a canned result if not
 - **Letter of intent** form that produces a signed, numbered LOI on screen
 - **Pre-order** checkout: a built-in mock, or your Stripe test link
-- **`/deals.html`**: the LOIs and pre-orders signed on this device, for the Seller and Fundraiser to quote
+- **`/deals.html`**: every LOI and pre-order, from all devices once storage is connected (see SETUP.md)
+- **`/api/health`**: shows which services are connected
 
 No build step. Pick a preset in `config.js`, push, and it's live.
 
