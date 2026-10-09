@@ -49,9 +49,10 @@
     #proposal td, #proposal th { border-bottom: 1px solid #ddd; padding: 8px; text-align: left; }
     #proposal td.r, #proposal th.r { text-align: right; }
     #proposal .meta { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 12px; color: #444; }
+    .btn:disabled { opacity: .45; cursor: not-allowed; }
     @media print {
       body { background: #fff; color: #111; }
-      .nav, .app, .foot, #quote-out .actions, #gen-warn, #share-box { display: none !important; }
+      .nav, .app, .foot, #quote-out .actions, #gen-warn, #gate, #gate-stamp, #share-box { display: none !important; }
       #quote-out { display: block !important; padding: 0 !important; }
       #proposal { border: 0 !important; }
     }
@@ -171,6 +172,15 @@
 
   <section class="wrap" id="quote-out" hidden style="padding:0 16px 40px">
     <div id="gen-warn" hidden role="alert" style="margin-bottom:10px;border:1px solid #6b5313;background:#2a2312;color:#f5e3b0;border-radius:10px;padding:10px 12px;font-size:.9rem"></div>
+    <div id="gate" hidden role="alert" style="margin-bottom:10px;border:2px solid #b91c1c;background:#2a1212;color:#fde2e2;border-radius:10px;padding:12px">
+      <b>🔒 HELD: thin job.</b> <span id="gate-why"></span> Print and share stay locked until someone other than the estimator signs off.
+      <div class="row" style="margin-top:8px;align-items:flex-end">
+        <label style="flex:1 1 160px">Approver (not the estimator)<input id="gate-name" aria-label="Approver name" placeholder="e.g. Kwame Asante" /></label>
+        <label style="flex:2 1 220px">Why take it at this margin?<input id="gate-reason" aria-label="Reason for approving thin margin" placeholder="e.g. Strategic client, follow-on work expected" /></label>
+        <button class="btn" id="gate-ok" type="button" style="margin-bottom:10px">Approve &amp; release</button>
+      </div>
+    </div>
+    <div id="gate-stamp" hidden role="status" style="margin-bottom:10px;border:1px solid #15803d;background:#0f2a1a;color:#bbf7d0;border-radius:10px;padding:10px 12px;font-size:.9rem"></div>
     <div class="card" id="proposal" style="background:#fff;color:#111;padding:32px"></div>
     <div class="actions">
       <button class="btn btn-ghost" id="print" type="button">🖨️ Print / save PDF</button>
@@ -611,13 +621,32 @@
       const list = issues();
       $("#gen-warn").hidden = !list.length;
       $("#gen-warn").innerHTML = list.length ? `<b>⚠ Before you send:</b> ${list.length} possible miss${list.length > 1 ? "es" : ""}: ${list.map((x) => x.text).join(" · ")} <span style="opacity:.7">(internal, not on the customer's copy)</span>` : "";
+      // Send gate: a bid under its margin floor can't be printed or shared until a named approver releases it.
+      const m = margin();
+      held = !!(m && m.pct < m.target);
+      $("#gate").hidden = !held;
+      $("#gate-stamp").hidden = true;
+      $("#print").disabled = $("#share").disabled = held;
+      if (held) $("#gate-why").textContent = `Margin ${m.pct.toFixed(1)}% vs your ${m.target}% floor (about ${money(m.shortfall)} short).`;
     };
-    $("#print").onclick = () => window.print();
+    let held = false;
+    $("#gate-ok").onclick = () => {
+      const name = $("#gate-name").value.trim(), reason = $("#gate-reason").value.trim();
+      if (!name || !reason) return $(name ? "#gate-reason" : "#gate-name").focus();
+      const m = margin(), at = new Date();
+      held = false;
+      $("#gate").hidden = true;
+      $("#print").disabled = $("#share").disabled = false;
+      $("#gate-stamp").hidden = false;
+      $("#gate-stamp").innerHTML = `✅ Thin-margin release approved by <b>${esc(name)}</b> on ${esc(at.toLocaleString())}: ${esc(reason)} <span style="opacity:.7">(margin ${m ? m.pct.toFixed(1) : "?"}% vs ${m ? m.target : "?"}% floor · internal, not on the customer's copy)</span>`;
+      try { fetch("/api/loi", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ kind: "thin-approval", id: current && current.no, company: current && current.client, name, reason, margin: m && +m.pct.toFixed(1), floor: m && m.target, at: at.toISOString() }) }); } catch (_) {}
+    };
+    $("#print").onclick = () => { if (!held) window.print(); };
 
     const encode = (o) => btoa(unescape(encodeURIComponent(JSON.stringify(o))));
     const decode = (t) => JSON.parse(decodeURIComponent(escape(atob(t))));
     $("#share").onclick = async () => {
-      if (!current) return;
+      if (!current || held) return;
       const { industry: _i, total: _t, ...data } = current;
       const url = location.origin + "/app.html#q=" + encodeURIComponent(encode(data));
       $("#share-url").value = url;
