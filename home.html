@@ -4,6 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Loading…</title>
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
   <link rel="stylesheet" href="styles.css" />
   <script src="presets/quotecraft.js"></script>
   <script src="presets/evalue.js"></script>
@@ -41,7 +42,7 @@
     <section class="wrap" id="demo">
       <h2 data-bind="demo.title"></h2>
       <form id="demo-form" class="card">
-        <textarea id="demo-input" rows="5" required></textarea>
+        <textarea id="demo-input" rows="5" required aria-label="Describe the job"></textarea>
         <button class="btn" type="submit" data-bind="demo.button"></button>
       </form>
       <pre id="demo-out" class="card out" hidden></pre>
@@ -57,6 +58,7 @@
     <section class="wrap" id="pricing">
       <h2>Pricing</h2>
       <div class="grid3" id="plans"></div>
+      <div id="order-done" class="card done" role="status" aria-live="polite" hidden style="margin-top:16px"></div>
     </section>
 
     <section class="wrap" id="loi">
