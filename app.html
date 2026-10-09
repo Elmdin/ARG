@@ -1,0 +1,235 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>QuoteCraft · Quote builder</title>
+  <link rel="stylesheet" href="styles.css" />
+  <style>
+    .app { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); gap: 20px; padding: 24px 0 48px; }
+    @media (max-width: 900px) { .app { grid-template-columns: 1fr; } }
+    .row { display: flex; gap: 10px; flex-wrap: wrap; align-items: end; }
+    .row > label { flex: 1 1 140px; font-size: .85rem; color: var(--muted); }
+    .chips { display: flex; gap: 8px; flex-wrap: wrap; margin: 10px 0 4px; }
+    .chip { background: #0f0f15; border: 1px solid var(--line); color: var(--fg); border-radius: 999px; padding: 6px 12px; cursor: pointer; font: inherit; font-size: .85rem; }
+    .chip.on { border-color: var(--accent); color: #fff; background: color-mix(in srgb, var(--accent) 25%, transparent); }
+    table.items { width: 100%; border-collapse: collapse; margin-top: 12px; }
+    .items th { text-align: left; font-size: .75rem; color: var(--muted); font-weight: 600; padding: 4px; }
+    .items td { padding: 4px; vertical-align: middle; }
+    .items input { margin: 0; padding: 8px; }
+    .items .n { width: 72px; } .items .p { width: 110px; } .items .amt { text-align: right; white-space: nowrap; width: 90px; }
+    .x { background: none; border: 0; color: var(--muted); cursor: pointer; font-size: 1.1rem; }
+    .totals { margin-top: 12px; display: grid; gap: 4px; justify-items: end; }
+    .totals div { display: flex; gap: 24px; } .totals .grand { font-size: 1.6rem; font-weight: 800; }
+    .muted { color: var(--muted); font-size: .85rem; }
+    .kpis { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin: 12px 0; }
+    .kpi { background: #0f0f15; border: 1px solid var(--line); border-radius: 10px; padding: 10px; }
+    .kpi b { display: block; font-size: 1.3rem; } .kpi span { font-size: .75rem; color: var(--muted); }
+    .buyer { border-top: 1px solid var(--line); padding: 10px 0; }
+    .buyer h4 { margin: 0; display: flex; justify-content: space-between; gap: 8px; font-size: .95rem; }
+    .tag { font-size: .7rem; padding: 2px 8px; border-radius: 999px; font-weight: 700; text-transform: uppercase; white-space: nowrap; }
+    .accept { background: #12392b; color: #3ddc97; } .negotiate { background: #3d3113; color: #f5c451; } .reject { background: #3d1717; color: #ff7a7a; }
+    .buyer p { margin: 4px 0 0; font-size: .85rem; }
+    .curve { display: flex; align-items: end; gap: 2px; height: 90px; margin-top: 8px; }
+    .curve div { flex: 1; background: #2a2a3a; border-radius: 2px 2px 0 0; min-height: 2px; }
+    .curve .cur { background: #8a8aa0; } .curve .best { background: var(--accent); }
+    .legend { display: flex; justify-content: space-between; font-size: .7rem; color: var(--muted); }
+    @media (max-width: 600px) {
+      .items .n { width: 52px; } .items .p { width: 78px; } .items .amt { width: 72px; font-size: .8rem; }
+      .items input { padding: 6px; font-size: .85rem; }
+      .kpis { grid-template-columns: 1fr; }
+    }
+    #proposal { display: none; }
+    @media print {
+      body { background: #fff; color: #111; }
+      .nav, .app, .foot { display: none !important; }
+      #proposal { display: block !important; color: #111; padding: 24px; }
+      #proposal table { width: 100%; border-collapse: collapse; } #proposal td, #proposal th { border-bottom: 1px solid #ddd; padding: 8px; text-align: left; }
+    }
+  </style>
+</head>
+<body>
+  <header class="nav">
+    <div class="wrap nav-in">
+      <a class="brand" href="/">QuoteCraft</a>
+      <nav><a href="/">Home</a><a href="/#pricing">Pricing</a><a href="/#loi" class="btn btn-sm">Sign LOI</a></nav>
+    </div>
+  </header>
+
+  <main class="wrap app">
+    <section class="card" style="padding:20px">
+      <h2 style="margin-bottom:6px">1 · Build the quote</h2>
+      <p class="muted">Start from a template, or describe the job and let AI draft the line items.</p>
+      <div class="chips" id="templates"></div>
+
+      <div class="row" style="margin-top:12px">
+        <label style="flex:3 1 260px">Describe the job (optional)
+          <input id="job" placeholder="Website redesign for a 20-person dental clinic, 6 pages, booking integration, 3 months support" />
+        </label>
+        <button class="btn" id="draft" type="button">✨ AI draft</button>
+      </div>
+
+      <div class="row" style="margin-top:12px">
+        <label>Your company<input id="seller" value="Northwind Studio" /></label>
+        <label>Client<input id="client" value="Acme Dental" /></label>
+      </div>
+
+      <div style="overflow-x:auto"><table class="items">
+        <thead><tr><th>Item</th><th>Qty</th><th>Unit $</th><th class="amt">Amount</th><th></th></tr></thead>
+        <tbody id="rows"></tbody>
+      </table></div>
+      <button class="chip" id="add" type="button" style="margin-top:8px">+ Add line</button>
+
+      <div class="row" style="margin-top:14px">
+        <label>Discount %<input id="discount" type="number" min="0" max="100" step="0.5" value="0" /></label>
+        <label>Tax %<input id="tax" type="number" min="0" max="50" step="0.25" value="8.5" /></label>
+        <label style="flex:2 1 220px">Terms<input id="notes" value="50% deposit, balance on delivery. Valid 30 days." /></label>
+      </div>
+
+      <div class="totals">
+        <div><span class="muted">Subtotal</span><span id="sub"></span></div>
+        <div><span class="muted">Discount</span><span id="disc"></span></div>
+        <div><span class="muted">Tax</span><span id="taxv"></span></div>
+        <div class="grand"><span id="total"></span></div>
+      </div>
+
+      <div class="actions">
+        <button class="btn" id="simulate" type="button">🎯 Test with AI buyers</button>
+        <button class="btn btn-ghost" id="print" type="button">📄 Proposal / PDF</button>
+      </div>
+    </section>
+
+    <section class="card" style="padding:20px">
+      <h2 style="margin-bottom:6px">2 · Deal Room</h2>
+      <p class="muted">Six AI buyer agents (owner, CFO, founder, enterprise, repeat client, skeptic) review your quote at the same time. Each names the most they'd really pay. The price optimizer then finds the price that earns the most.</p>
+      <div id="room"><p class="muted" style="margin-top:20px">Run <b>Test with AI buyers</b> to see who signs, who pushes back, and the best price.</p></div>
+    </section>
+  </main>
+
+  <div id="proposal"></div>
+  <footer class="wrap foot">QuoteCraft · <a href="/deals.html">Deals</a></footer>
+
+  <script>
+  (function () {
+    const $ = (s) => document.querySelector(s);
+    const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
+    const money = (n) => "$" + (Math.round(n * 100) / 100).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+    const TEMPLATES = {
+      "Agency / consulting": { seller: "Northwind Studio", client: "Acme Dental", tax: 0, items: [["Discovery & strategy workshop", 1, 2400], ["UX/UI design (hours)", 40, 125], ["Development (hours)", 60, 140], ["Booking system integration", 1, 1800], ["Monthly support retainer", 3, 650]] },
+      "IT / software": { seller: "BrightOps IT", client: "Harbor Logistics", tax: 8.5, items: [["Onboarding & setup", 1, 3500], ["User licenses (per seat / yr)", 45, 240], ["Data migration", 1, 2200], ["Premium support (per month)", 12, 400]] },
+      "Events / catering": { seller: "Golden Fork Events", client: "Lumen Labs", tax: 8.5, items: [["Dinner, 3 courses (per guest)", 120, 68], ["Open bar, 3 hours (per guest)", 120, 32], ["Event staff (per person)", 10, 280], ["Venue styling & rentals", 1, 2600]] },
+      "Cleaning / home services": { seller: "Sparkle Pro", client: "Maple Office Park", tax: 0, items: [["Office cleaning visit", 12, 340], ["Deep clean (quarterly)", 1, 1200], ["Window washing", 2, 450], ["Supplies & consumables", 12, 45]] },
+      "Trades / contractor": { seller: "Ridgeline Builders", client: "The Patel Residence", tax: 7.25, items: [["Materials: framing & drywall", 1, 6400], ["Labor (hours)", 120, 85], ["Electrical subcontract", 1, 3200], ["Permits & inspection", 1, 900], ["Waste removal", 1, 650]] },
+    };
+    let industry = "Agency / consulting";
+    let items = [];
+
+    function totals() {
+      const sub = items.reduce((s, i) => s + i.qty * i.price, 0);
+      const d = sub * (Number($("#discount").value) || 0) / 100;
+      const t = (sub - d) * (Number($("#tax").value) || 0) / 100;
+      return { sub, d, t, total: Math.round((sub - d + t) * 100) / 100 };
+    }
+    function recalc() {
+      const x = totals();
+      $("#sub").textContent = money(x.sub); $("#disc").textContent = "−" + money(x.d);
+      $("#taxv").textContent = money(x.t); $("#total").textContent = money(x.total);
+      document.querySelectorAll("[data-amt]").forEach((el) => { const i = items[el.dataset.amt]; el.textContent = money(i.qty * i.price); });
+    }
+    function render() {
+      $("#rows").innerHTML = items.map((i, k) => `<tr>
+        <td><input data-k="${k}" data-f="desc" value="${esc(i.desc)}" /></td>
+        <td class="n"><input data-k="${k}" data-f="qty" type="number" min="0" step="any" value="${i.qty}" /></td>
+        <td class="p"><input data-k="${k}" data-f="price" type="number" min="0" step="any" value="${i.price}" /></td>
+        <td class="amt" data-amt="${k}"></td>
+        <td><button class="x" data-del="${k}" title="Remove" type="button">×</button></td></tr>`).join("");
+      recalc();
+    }
+    function load(name) {
+      industry = name; const t = TEMPLATES[name];
+      items = t.items.map(([desc, qty, price]) => ({ desc, qty, price }));
+      $("#seller").value = t.seller; $("#client").value = t.client; $("#tax").value = t.tax; $("#discount").value = 0;
+      document.querySelectorAll(".chip[data-t]").forEach((c) => c.classList.toggle("on", c.dataset.t === name));
+      render(); $("#room").innerHTML = '<p class="muted" style="margin-top:20px">Run <b>Test with AI buyers</b> to see who signs, who pushes back, and the best price.</p>';
+    }
+
+    $("#templates").innerHTML = Object.keys(TEMPLATES).map((n) => `<button class="chip" type="button" data-t="${esc(n)}">${esc(n)}</button>`).join("");
+    $("#templates").addEventListener("click", (e) => { if (e.target.dataset.t) load(e.target.dataset.t); });
+    $("#rows").addEventListener("input", (e) => {
+      const k = e.target.dataset.k; if (k == null) return;
+      const f = e.target.dataset.f; items[k][f] = f === "desc" ? e.target.value : Math.max(0, Number(e.target.value) || 0); recalc();
+    });
+    $("#rows").addEventListener("click", (e) => { if (e.target.dataset.del != null) { items.splice(e.target.dataset.del, 1); render(); } });
+    $("#add").onclick = () => { items.push({ desc: "New item", qty: 1, price: 100 }); render(); };
+    ["#discount", "#tax"].forEach((s) => $(s).addEventListener("input", recalc));
+
+    $("#draft").onclick = async () => {
+      const job = $("#job").value.trim(); if (!job) return $("#job").focus();
+      const b = $("#draft"); b.disabled = true; b.textContent = "Drafting…";
+      try {
+        const r = await fetch("/api/draft", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ job }) });
+        if (!r.ok) throw 0;
+        const d = await r.json();
+        items = d.items; industry = d.industry || industry;
+        if (d.client) $("#client").value = d.client;
+        if (d.notes) $("#notes").value = d.notes;
+        document.querySelectorAll(".chip[data-t]").forEach((c) => c.classList.remove("on"));
+        render();
+      } catch (_) { alert("AI drafting is unavailable right now. Pick a template instead."); }
+      b.disabled = false; b.textContent = "✨ AI draft";
+    };
+
+    function quote() {
+      const x = totals();
+      return { seller: $("#seller").value, client: $("#client").value, industry, items, discount: Number($("#discount").value) || 0, tax: Number($("#tax").value) || 0, notes: $("#notes").value, total: x.total };
+    }
+
+    $("#simulate").onclick = async () => {
+      const q = quote(); if (!q.total) return alert("Add at least one priced line item.");
+      const b = $("#simulate"); b.disabled = true; b.textContent = "6 buyers reviewing…";
+      $("#room").innerHTML = '<p class="muted" style="margin-top:20px">Sending the quote to Dana, Marcus, Priya, Tom, Lena and Raj…</p>';
+      try {
+        const r = await fetch("/api/simulate", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(q) });
+        const s = await r.json(); if (!r.ok) throw 0;
+        const max = Math.max(...s.curve.map((c) => c.expected)) || 1;
+        const lift = s.best.expected - s.current.expected;
+        $("#room").innerHTML = `
+          <div class="kpis">
+            <div class="kpi"><b>${Math.round(s.current.winRate * 100)}%</b><span>win rate at ${money(q.total)}</span></div>
+            <div class="kpi"><b>${money(s.best.price)}</b><span>best price (${Math.round(s.best.winRate * 100)}% win)</span></div>
+            <div class="kpi"><b>${lift > 0 ? "+" + money(lift) : "Optimal"}</b><span>expected revenue lift / deal</span></div>
+          </div>
+          <div class="muted">Expected revenue at each price: <span style="color:#8a8aa0">■</span> yours <span style="color:var(--accent)">■</span> best</div>
+          <div class="curve">${s.curve.map((c) => `<div class="${c.price === s.best.price ? "best" : Math.abs(c.price - q.total) === Math.min(...s.curve.map((z) => Math.abs(z.price - q.total))) ? "cur" : ""}" style="height:${Math.max(2, (c.expected / max) * 100)}%" title="${money(c.price)}: ${Math.round(c.winRate * 100)}% win, ${money(c.expected)} expected"></div>`).join("")}</div>
+          <div class="legend"><span>${money(s.curve[0].price)}</span><span>${money(s.curve[s.curve.length - 1].price)}</span></div>
+          ${lift > 0 ? `<div class="actions" style="margin:12px 0"><button class="btn btn-sm" id="apply" type="button">Apply best price</button></div>` : ""}
+          ${s.panel.map((p) => `<div class="buyer"><h4><span>${esc(p.name)} · <span class="muted">${esc(p.role)}</span></span><span class="tag ${esc(p.decision)}">${esc(p.decision)}</span></h4>
+            <p>“${esc(p.says)}”</p><p class="muted">Would pay up to <b>${money(p.walkaway_price)}</b> · Concern: ${esc(p.objection)} · Fix: ${esc(p.would_fix)}</p></div>`).join("")}
+          <p class="muted" style="margin-top:10px">${s.mode === "live" ? "Live AI agents" : "Simulated panel"} · ${(s.ms / 1000).toFixed(1)}s</p>`;
+        const a = $("#apply");
+        if (a) a.onclick = () => {
+          const x = totals(); const pre = x.sub; const taxF = 1 + (Number($("#tax").value) || 0) / 100;
+          const disc = Math.round((1 - s.best.price / taxF / pre) * 1000) / 10;
+          if (disc >= 0) { $("#discount").value = disc; recalc(); }
+          else { const k = s.best.price / taxF / pre; items = items.map((i) => ({ ...i, price: Math.round(i.price * k * 100) / 100 })); $("#discount").value = 0; render(); }
+        };
+      } catch (_) { $("#room").innerHTML = '<p class="muted">The buyer panel is busy. Try again in a moment.</p>'; }
+      b.disabled = false; b.textContent = "🎯 Test with AI buyers";
+    };
+
+    $("#print").onclick = () => {
+      const q = quote(), x = totals();
+      $("#proposal").innerHTML = `<h1 style="margin:0">${esc(q.seller)}</h1><p>Proposal for <b>${esc(q.client)}</b> · ${new Date().toLocaleDateString()}</p>
+        <table><tr><th>Item</th><th>Qty</th><th>Unit</th><th>Amount</th></tr>
+        ${q.items.map((i) => `<tr><td>${esc(i.desc)}</td><td>${i.qty}</td><td>${money(i.price)}</td><td>${money(i.qty * i.price)}</td></tr>`).join("")}</table>
+        <p style="text-align:right">Subtotal ${money(x.sub)}<br>Discount −${money(x.d)}<br>Tax ${money(x.t)}<br><b style="font-size:1.4em">Total ${money(x.total)}</b></p>
+        <p><b>Terms:</b> ${esc(q.notes)}</p><p style="margin-top:40px">Accepted by: ______________________ Date: __________</p>`;
+      window.print();
+    };
+
+    load(industry);
+  })();
+  </script>
+</body>
+</html>

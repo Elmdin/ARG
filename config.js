@@ -4,7 +4,7 @@
 //  New idea? Copy presets/blank.js to presets/<name>.js, add a
 //  <script> tag for it in index.html, and set ACTIVE below.
 // ============================================================
-const ACTIVE = "evalue";
+const ACTIVE = "quotecraft";
 
 (function () {
   let p = ACTIVE;

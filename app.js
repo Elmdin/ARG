@@ -8,6 +8,12 @@
   document.documentElement.style.setProperty("--accent", S.accent);
   document.querySelectorAll("[data-bind]").forEach((el) => (el.textContent = get(el.dataset.bind) ?? ""));
   $("#year").textContent = new Date().getFullYear();
+  if (S.appUrl) {
+    const c = $("#hero-cta");
+    c.href = S.appUrl;
+    c.textContent = `Open ${S.name} →`;
+    $("#demo-out").insertAdjacentHTML("afterend", `<p><a class="btn btn-ghost" href="${esc(S.appUrl)}">Open the full app →</a></p>`);
+  }
 
   $("#stats").innerHTML = S.stats.map((s) => `<div><b>${esc(s.value)}</b><span>${esc(s.label)}</span></div>`).join("");
   $("#features").innerHTML = S.features
