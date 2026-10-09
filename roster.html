@@ -1,0 +1,198 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Term seat confirmation</title><link rel="icon" href="/favicon.svg" type="image/svg+xml"><link rel="stylesheet" href="styles.css">
+<style>
+  [hidden] { display: none !important; }
+  section { padding: 16px 0; }
+  .cb .btn { min-height: 46px; font-size: 1rem; }
+  .cb input, .cb select, .cb textarea { min-height: 46px; font-size: 16px; }
+  .row { display: flex; gap: 10px; flex-wrap: wrap; align-items: end; }
+  .row > * { flex: 1 1 140px; }
+  .badge { display: inline-block; font-weight: 800; font-size: .75rem; letter-spacing: .05em; padding: 3px 9px; border-radius: 999px; color: #fff; white-space: nowrap; }
+  .b-PENDING { background: #4a4a5c; } .b-CONFIRMED { background: #1f8f5f; } .b-LAPSED { background: #d94848; } .b-CANCELLED { background: #6b6b78; } .b-FILLED { background: #2f6fd6; }
+  .risk { background: #7f1d1d; color: #fff; }
+  .fam { border-top: 1px solid var(--line); padding: 12px 0; }
+  .fam h3 { margin: 0; display: flex; justify-content: space-between; gap: 8px; flex-wrap: wrap; font-size: 1rem; }
+  .fam .meta { color: var(--muted); margin: 4px 0 8px; font-size: .9rem; }
+  .btns { display: flex; gap: 8px; flex-wrap: wrap; }
+  .tabs { display: flex; gap: 8px; flex-wrap: wrap; margin: 8px 0; }
+  .tabs button { background: #0f0f15; border: 1px solid var(--line); color: var(--fg); border-radius: 999px; padding: 8px 14px; cursor: pointer; font: inherit; }
+  .tabs button.on { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 25%, transparent); }
+  .sum { background: #0f0f15; border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; margin: 6px 0; font-size: .95rem; }
+  .msg { border-radius: 10px; padding: 10px 12px; margin: 8px 0; } .msg.ok { background: #12392b; color: #bff5dc; } .msg.err { background: #3d1717; color: #ffc4c4; }
+  .offer { margin: 6px 0; }
+</style></head>
+<body><main class="wrap cb" style="padding:20px 16px 48px">
+<h2 style="margin-bottom:2px" id="studioName">Term seat confirmation</h2>
+<p class="muted" style="margin:0">Centre manager screen · families confirm by text, no app or login · fees shown for reference only, we never collect payment</p>
+
+<div class="tabs" id="centres" role="tablist" aria-label="Centre"></div>
+<div id="summary"></div>
+<div id="note"></div>
+
+<section>
+  <div class="row" style="align-items:center"><h3 style="margin:0;flex:2 1 200px">Families</h3>
+    <button class="btn" id="sendAll" type="button">Text all pending</button></div>
+  <div id="bulk"></div>
+  <div id="list"></div>
+</section>
+
+<section class="card" style="padding:16px">
+  <h3 style="margin-top:0">Add a family to the roster</h3>
+  <form id="addForm">
+    <div class="row">
+      <label>Parent name<input name="client" required></label>
+      <label>Phone<input name="phone" required inputmode="tel" placeholder="0712 345 678"></label>
+      <label>Child & class<input name="seat" required placeholder="Achieng (Grade 4)"></label>
+    </div>
+    <div class="row">
+      <label>Centre<select name="centre" id="addCentre"></select></label>
+      <label>Term<input name="term" value="Term 1 2027"></label>
+      <label>Term starts<input name="at" type="date" required id="addAt"></label>
+      <label>Fees per term<input name="price" type="number" min="0" step="100" value="58500"></label>
+      <label>Confirm by (days before)<input name="cutoffDays" type="number" min="0" max="90" value="21"></label>
+    </div>
+    <div class="row">
+      <label style="display:flex;gap:8px;align-items:center"><input type="checkbox" name="missed" style="width:auto;min-height:0"> Missed sessions this term</label>
+      <label style="display:flex;gap:8px;align-items:center"><input type="checkbox" name="complaint" style="width:auto;min-height:0"> Complaint on file</label>
+      <button class="btn" type="submit">Add family</button>
+    </div>
+  </form>
+  <div id="addMsg"></div>
+</section>
+
+<section class="card" style="padding:16px">
+  <h3 style="margin-top:0">Waitlist <span class="muted" id="wlScope" style="font-weight:400;font-size:.85rem"></span></h3>
+  <div id="wl"></div>
+  <form id="wlForm" class="row" style="margin-top:10px">
+    <label>Parent (child, class)<input name="name" required placeholder="Grace Njeri (for Brian, Grade 5)"></label>
+    <label>Phone<input name="phone" required inputmode="tel"></label>
+    <label>Centre<select name="centre" id="wlCentre"></select></label>
+    <button class="btn" type="submit">Add to waitlist</button>
+  </form>
+  <div id="wlMsg"></div>
+  <label style="display:flex;gap:8px;align-items:center;margin-top:12px"><input type="checkbox" id="perCentre" style="width:auto;min-height:0"> Separate waitlist for each centre (untick to share one list across all centres)</label>
+</section>
+</main>
+<script>
+const $ = (id) => document.getElementById(id);
+const S = (new URLSearchParams(location.search).get("s") || "elimu").toLowerCase();
+const esc = (s) => String(s == null ? "" : s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const day = (iso) => new Date(iso).toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short", year: "numeric" });
+const first = (n) => String(n || "").trim().split(/\s+/)[0];
+const link = (t) => `${location.origin}/c.html?t=${t}`;
+let data = null, centre = "All";
+const fees = (a) => (a.price ? `${a.currency || data.studio.currency || ""} ${Number(a.price).toLocaleString()}` : "");
+const confirmText = (a) => `Hi ${first(a.client)}, ${data.studio.name} here. ${a.seat} has a seat at ${a.centre} for ${a.term} (starts ${day(a.at)}). Fees ${fees(a)} per term. Please confirm by ${day(a.cutoff)} to keep the seat. Tap the link and type your name to confirm: ${link(a.token)}`;
+const remindText = (a) => `Reminder from ${data.studio.name}: please confirm ${a.seat}'s seat at ${a.centre} for ${a.term} by ${day(a.cutoff)}, or it will be offered to a family on the waitlist. Tap the link and type your name: ${link(a.token)}`;
+const offerText = (a, o) => `Hi ${first(o.name)}, ${data.studio.name} here. A seat has opened at ${a.centre} for ${a.term} (starts ${day(a.at)}). Fees ${fees(a)} per term. First family to accept gets it. Tap the link and type your name: ${link(o.t)}`;
+function phoneIntl(p) {
+  let d = String(p).replace(/[^\d+]/g, "");
+  if (d.startsWith("+")) return d;
+  if (d.startsWith("0") && d.length === 10) return "+254" + d.slice(1); // Kenyan mobile
+  if (d.length === 9 && /^[17]/.test(d)) return "+254" + d;
+  return d;
+}
+const smsHref = (phone, body) => `sms:${phoneIntl(phone)}?&body=${encodeURIComponent(body)}`;
+function say(el, text, ok = true) { $(el).innerHTML = text ? `<div class="msg ${ok ? "ok" : "err"}" role="status">${text}</div>` : ""; }
+async function api(body) {
+  const r = await fetch(body ? "/api/confirm" : "/api/confirm?s=" + encodeURIComponent(S), { method: body ? "POST" : "GET", headers: { "content-type": "application/json" }, body: body ? JSON.stringify({ s: S, ...body }) : undefined });
+  let j = {}; try { j = await r.json(); } catch (_) {}
+  if (!r.ok) throw new Error(j.error || "Request failed (" + r.status + ")");
+  return j;
+}
+const risky = (a) => a.risk && (a.risk.missed || a.risk.complaint);
+const riskLabel = (a) => [a.risk && a.risk.missed && "missed sessions", a.risk && a.risk.complaint && "complaint on file"].filter(Boolean).join(" + ");
+// Who to chase first: at-risk pending, then lapsed (backfill), then other pending, then done.
+const rank = (a) => a.status === "PENDING" && risky(a) ? 0 : a.status === "LAPSED" ? 1 : a.status === "PENDING" ? 2 : a.status === "CANCELLED" ? 3 : 4;
+
+function render() {
+  const st = data.studio, roster = data.appts.filter((a) => a.seat);
+  document.title = st.name + " · Term seat confirmation";
+  $("studioName").textContent = st.name + " · seat confirmation";
+  const centres = st.centres && st.centres.length ? st.centres : [...new Set(roster.map((a) => a.centre))];
+  $("centres").innerHTML = ["All", ...centres].map((c) => `<button type="button" role="tab" class="${c === centre ? "on" : ""}" data-c="${esc(c)}">${esc(c)}</button>`).join("");
+  ["addCentre", "wlCentre"].forEach((id) => { $(id).innerHTML = centres.map((c) => `<option${c === centre ? " selected" : ""}>${esc(c)}</option>`).join(""); });
+  $("perCentre").checked = st.perCentre !== false;
+  $("wlScope").textContent = st.perCentre !== false ? "(separate list per centre)" : "(one list shared by all centres)";
+  const rows = roster.filter((a) => centre === "All" || a.centre === centre);
+  const sumFor = (c) => {
+    const r = roster.filter((a) => a.centre === c), n = (s) => r.filter((a) => a.status === s).length;
+    const atRisk = r.filter((a) => a.status === "PENDING" && risky(a)).length;
+    const wl = data.waitlist.filter((w) => st.perCentre === false || w.centre === c).length;
+    const term = r[0] ? r[0].term : "";
+    return `<div class="sum"><b>${esc(term)} · ${esc(c)}:</b> ${n("CONFIRMED") + n("FILLED")} confirmed · ${n("PENDING")} pending${atRisk ? ` (<b style="color:#ff9a9a">${atRisk} at risk</b>)` : ""} · <b${n("LAPSED") ? ' style="color:#ff9a9a"' : ""}>${n("LAPSED")} lapsed</b> · ${wl} on waitlist</div>`;
+  };
+  $("summary").innerHTML = (centre === "All" ? centres : [centre]).map(sumFor).join("");
+  const lapsed = rows.filter((a) => a.status === "LAPSED" && !(a.offers || []).length);
+  $("note").innerHTML = lapsed.length ? `<div class="msg err" role="alert"><b>${lapsed.length} seat${lapsed.length > 1 ? "s" : ""} lapsed</b> (not confirmed by the deadline): ${lapsed.map((a) => esc(a.seat) + " · " + esc(a.centre)).join(", ")}. Tap <b>Backfill</b> to text the waitlist.</div>` : "";
+  $("list").innerHTML = rows.slice().sort((x, y) => rank(x) - rank(y)).map((a) => {
+    const b = [];
+    if (a.status === "PENDING") {
+      if (a.reminderDue) b.push(`<a class="btn" data-remind="${a.id}" href="${esc(smsHref(a.phone, remindText(a)))}">Send reminder</a>`);
+      else b.push(`<a class="btn${a.reminderSentAt ? " btn-ghost" : ""}" href="${esc(smsHref(a.phone, confirmText(a)))}">Send text</a>`);
+      b.push(`<button class="btn btn-ghost" type="button" data-copy="${a.id}">Copy message</button>`);
+    }
+    if (a.status === "LAPSED" || a.status === "CANCELLED") b.push(`<button class="btn" type="button" data-backfill="${a.id}">Backfill from waitlist</button>`);
+    if (a.status === "PENDING" || a.status === "LAPSED") b.push(`<button class="btn btn-ghost" type="button" data-cancel="${a.id}">Family withdrew</button>`);
+    const detail = a.status === "CONFIRMED" ? `Confirmed by "${esc(a.acceptedName)}" on ${esc(new Date(a.acceptedAt).toLocaleString("en-GB"))}`
+      : a.status === "FILLED" ? `Seat filled from waitlist by ${esc(a.filledBy.name)} on ${esc(new Date(a.filledBy.at).toLocaleString("en-GB"))}`
+      : a.status === "PENDING" ? `Must confirm by ${esc(day(a.cutoff))}${a.reminderSentAt ? " · reminder sent" : ""}`
+      : a.status === "LAPSED" ? `Not confirmed by ${esc(day(a.cutoff))}` : "Withdrawn";
+    const offers = (a.offers || []).map((o) => `<div class="offer">Offered to ${esc(o.name)} · <a href="${esc(smsHref(o.phone, offerText(a, o)))}">Send text</a> · <button class="chip" type="button" data-copyo="${a.id}|${o.t}">Copy</button></div>`).join("");
+    return `<div class="fam" data-id="${a.id}"><h3><span>${esc(a.seat)} <span class="muted" style="font-weight:400">· ${esc(a.client)}</span></span><span><span class="badge b-${a.status}">${a.status}</span>${risky(a) && a.status !== "CONFIRMED" && a.status !== "FILLED" ? ` <span class="badge risk">AT RISK: ${esc(riskLabel(a))}</span>` : ""}</span></h3>
+      <div class="meta">${esc(a.centre)} · ${esc(a.term)} starts ${esc(day(a.at))} · ${esc(fees(a))} per term · ${esc(a.phone)}<br>${detail}</div>
+      <div class="btns">${b.join("")}</div>${offers}<div id="m-${a.id}"></div></div>`;
+  }).join("") || '<p class="muted">No families on this roster yet.</p>';
+  $("wl").innerHTML = data.waitlist.filter((w) => centre === "All" || st.perCentre === false || w.centre === centre)
+    .map((w) => `<div class="fam" style="padding:8px 0"><b>${esc(w.name)}</b> <span class="muted">· ${esc(w.centre || "any centre")} · ${esc(w.phone)}</span> <button class="chip" type="button" data-wlrm="${w.id}">Remove</button></div>`).join("") || '<p class="muted">Waitlist is empty.</p>';
+}
+async function load() { try { data = await api(); render(); } catch (e) { say("note", esc(e.message), false); } }
+
+document.addEventListener("click", async (e) => {
+  const t = e.target, d = t.dataset;
+  if (d.c) { centre = d.c; $("bulk").innerHTML = ""; return render(); }
+  const find = (id) => data.appts.find((a) => a.id === id);
+  if (d.copy) { const a = find(d.copy); try { await navigator.clipboard.writeText(confirmText(a)); say("m-" + a.id, "Message copied. Paste it into a text."); } catch (_) { say("m-" + a.id, esc(confirmText(a))); } return; }
+  if (d.copyo) { const [id, tk] = d.copyo.split("|"), a = find(id), o = a.offers.find((x) => x.t === tk); try { await navigator.clipboard.writeText(offerText(a, o)); say("m-" + id, "Offer copied."); } catch (_) { say("m-" + id, esc(offerText(a, o))); } return; }
+  if (d.remind) { api({ action: "reminded", id: d.remind }).then(load).catch(() => {}); return; }
+  try {
+    if (d.cancel) { await api({ action: "cancel", id: d.cancel }); await load(); say("m-" + d.cancel, "Marked as withdrawn. Tap Backfill to offer the seat."); }
+    if (d.backfill) {
+      const j = await api({ action: "backfill", id: d.backfill }); await load();
+      say("m-" + d.backfill, j.offers && j.offers.length ? `Seat offered to ${j.offers.length} waitlist famil${j.offers.length > 1 ? "ies" : "y"}. Tap each <b>Send text</b> below. First to accept gets the seat; the others are told it's taken.` : esc(j.message || "No one on the waitlist matches."), !!(j.offers && j.offers.length));
+    }
+    if (d.wlrm) { await api({ action: "wl_remove", id: d.wlrm }); await load(); }
+  } catch (err) { say("note", esc(err.message), false); }
+});
+$("sendAll").onclick = () => {
+  const p = data.appts.filter((a) => a.seat && a.status === "PENDING" && (centre === "All" || a.centre === centre)).sort((x, y) => rank(x) - rank(y));
+  if (!p.length) return say("bulk", "Everyone on this roster has confirmed or lapsed. Nothing to send.");
+  const all = p.map((a) => `To ${a.client} (${phoneIntl(a.phone)}):\n${a.reminderDue ? remindText(a) : confirmText(a)}`).join("\n\n");
+  $("bulk").innerHTML = `<div class="msg ok" role="status"><b>${p.length} families to text${centre === "All" ? "" : " at " + esc(centre)}.</b> Tap each one (at-risk families first), or copy all messages at once.<div class="btns" style="margin-top:8px">${p.map((a) => `<a class="btn btn-ghost" href="${esc(smsHref(a.phone, a.reminderDue ? remindText(a) : confirmText(a)))}">${esc(first(a.client))}${risky(a) ? " ⚠" : ""}</a>`).join("")}<button class="btn" type="button" id="copyAll">Copy all ${p.length} messages</button></div></div>`;
+  $("copyAll").onclick = async () => { try { await navigator.clipboard.writeText(all); $("copyAll").textContent = "Copied ✓"; } catch (_) { $("bulk").insertAdjacentHTML("beforeend", `<pre style="white-space:pre-wrap">${esc(all)}</pre>`); } };
+};
+$("addForm").onsubmit = async (e) => {
+  e.preventDefault();
+  const f = Object.fromEntries(new FormData(e.target));
+  f.missed = !!f.missed; f.complaint = !!f.complaint; f.at = f.at ? f.at + "T08:00:00" : "";
+  try { await api({ action: "create_roster", families: [f] }); e.target.reset(); setDefaults(); await load(); say("addMsg", `Added. Tap <b>Send text</b> on ${esc(f.client)}'s card to send the confirmation.`); }
+  catch (err) { say("addMsg", esc(err.message), false); }
+};
+$("wlForm").onsubmit = async (e) => {
+  e.preventDefault();
+  const f = Object.fromEntries(new FormData(e.target));
+  try { await api({ action: "wl_add", ...f, lang: "en", treatment: "Any" }); e.target.reset(); await load(); say("wlMsg", "Added to the waitlist."); }
+  catch (err) { say("wlMsg", esc(err.message), false); }
+};
+$("perCentre").onchange = async () => {
+  try { await api({ action: "studio", ...data.studio, perCentre: $("perCentre").checked }); await load(); say("wlMsg", $("perCentre").checked ? "Each centre now has its own waitlist." : "All centres now share one waitlist."); }
+  catch (err) { say("wlMsg", esc(err.message), false); }
+};
+function setDefaults() {
+  const t = data && data.appts.find((a) => a.seat);
+  $("addAt").value = (t ? new Date(t.at) : new Date(Date.now() + 42 * 86400e3)).toISOString().slice(0, 10);
+}
+load().then(setDefaults);
+setInterval(() => { if (!document.activeElement || !document.activeElement.closest("form")) load(); }, 15000);
+</script></body></html>

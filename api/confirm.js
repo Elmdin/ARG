@@ -42,7 +42,38 @@ const DEMO = {
       { name: "Luis Ramirez", phone: "555-301-0105", lang: "es", treatment: "Any" },
     ],
   },
+  elimu: {
+    name: "Elimu Plus Learning Centres",
+    mode: "roster",
+    currency: "KES",
+    perCentre: true,
+    cutoffDays: 21,
+    centres: ["Westlands", "Kasarani", "Rongai"],
+    terms: "Your child's seat is held until the confirmation deadline. Unconfirmed seats are offered to families on the waitlist.",
+    termsEs: "",
+    payNote: "Pay via M-Pesa Paybill 400200, Account: student name (or bank transfer).",
+    treatments: [],
+    deposit: 0,
+    depositTerms: "",
+    waitlist: [
+      { name: "Grace Njeri (for Brian, Grade 5)", phone: "0712 555 101", lang: "en", treatment: "Any", centre: "Westlands" },
+      { name: "Peter Otieno (for Faith, Grade 4)", phone: "0712 555 102", lang: "en", treatment: "Any", centre: "Westlands" },
+      { name: "Aisha Mohamed (for Yusuf, Grade 6)", phone: "0712 555 103", lang: "en", treatment: "Any", centre: "Kasarani" },
+      { name: "John Mwangi (for Ivy, Grade 3)", phone: "0712 555 104", lang: "en", treatment: "Any", centre: "Rongai" },
+    ],
+  },
 };
+// Demo roster for Elimu: Term 1 2027 starts in ~6 weeks; confirm by 3 weeks before.
+const ELIMU_ROSTER = [
+  ["Wanjiru Kamau", "Achieng (Grade 4)", "Westlands", 58500, { accepted: true }],
+  ["David Kiprop", "Kevin (Grade 6)", "Westlands", 58500, { missed: true }],
+  ["Mary Wambui", "Joy (Grade 3)", "Westlands", 52000, {}],
+  ["Hassan Ali", "Amina (Grade 5)", "Westlands", 58500, { lapsed: true }],
+  ["Esther Chebet", "Collins (Grade 7)", "Kasarani", 61000, { complaint: true }],
+  ["Samuel Ndungu", "Mercy (Grade 4)", "Kasarani", 58500, { accepted: true }],
+  ["Lucy Atieno", "Tom (Grade 5)", "Kasarani", 58500, {}],
+  ["Paul Mutua", "Ann (Grade 6)", "Rongai", 58500, { accepted: true }],
+];
 
 const clean = (v, n = 200) => String(v == null ? "" : v).trim().slice(0, n);
 const lang = (v) => (v === "es" ? "es" : "en");
@@ -106,6 +137,39 @@ const sameTreatment = (want, t) => {
 };
 const availableBy = (w, at) => !w.earliest || Date.parse(w.earliest) <= Date.parse(at);
 
+function rosterEntry(s, f, opts = {}) {
+  const at = Date.parse(f.at);
+  const days = f.cutoffDays === "" || f.cutoffDays == null ? 21 : Number(f.cutoffDays);
+  const a = {
+    id: id(6), s, client: clean(f.client, 80), phone: clean(f.phone, 30), lang: lang(f.lang),
+    treatment: `${clean(f.term, 40) || "Term"} seat · ${clean(f.seat, 60)}`,
+    term: clean(f.term, 40), seat: clean(f.seat, 60), centre: clean(f.centre, 40),
+    price: Number(f.price) || 0, currency: clean(f.currency, 6) || "KES",
+    at: new Date(at).toISOString(), cutoffHours: days * 24, cutoff: new Date(at - days * 86400e3).toISOString(),
+    terms: clean(f.terms, 500), payNote: clean(f.payNote, 200),
+    risk: { missed: !!f.missed, complaint: !!f.complaint },
+    created: opts.created || new Date().toISOString(), token: id(9), offers: [],
+  };
+  return a;
+}
+async function saveNew(s, a) {
+  await store.put(K.tok(a.token), { a: a.id, k: "c" });
+  await store.put(K.appt(a.id), a);
+  await store.push(K.appts(s), a.id);
+}
+async function seedElimu() {
+  if ((await store.list(K.appts("elimu"))).length) return;
+  if (!(await store.setnx("cb:seeded:elimu", { at: Date.now() }))) return;
+  const d = DEMO.elimu, now = Date.now(), start = new Date(now + 42 * 86400e3);
+  start.setHours(8, 0, 0, 0);
+  for (const [client, seat, centre, price, o] of ELIMU_ROSTER) {
+    const a = rosterEntry("elimu", { client, phone: "0722 " + String(100000 + Math.floor(Math.random() * 899999)).slice(0, 3) + " " + String(Math.floor(Math.random() * 900) + 100), lang: "en", term: "Term 1 2027", seat, centre, price, currency: d.currency, at: start.toISOString(), cutoffDays: d.cutoffDays, terms: d.terms, payNote: d.payNote, missed: o.missed, complaint: o.complaint }, { created: new Date(now - 30 * 86400e3).toISOString() });
+    if (o.accepted) { a.acceptedAt = new Date(now - 2 * 86400e3).toISOString(); a.acceptedName = client; }
+    if (o.lapsed) { a.cutoff = new Date(now - 86400e3).toISOString(); a.cutoffHours = Math.round((Date.parse(a.at) - Date.parse(a.cutoff)) / 3600e3); }
+    await saveNew("elimu", a);
+  }
+}
+
 module.exports = async (req, res) => {
   try {
     if (!store.enabled) return res.status(503).json({ error: "Storage is not connected, so appointments can't be saved yet." });
@@ -133,6 +197,11 @@ module.exports = async (req, res) => {
           name: tok.k === "c" ? a.client : tok.name,
           treatment: a.treatment,
           price: a.price,
+          currency: a.currency || "",
+          centre: a.centre || "",
+          seat: a.seat || "",
+          term: a.term || "",
+          payNote: a.payNote || "",
           at: a.at,
           cutoff: a.cutoff,
           terms: a.terms,
@@ -143,6 +212,7 @@ module.exports = async (req, res) => {
       }
       const s = sid(q.s);
       if (!s) return res.status(400).json({ error: "Add a location id to the address, e.g. ?s=seawall" });
+      if (s === "elimu") await seedElimu();
       const [st, appts, wl] = await Promise.all([studio(s), loadAppts(s), waitlist(s)]);
       return res.json({ studio: st, appts, waitlist: wl, now: new Date().toISOString() });
     }
@@ -202,6 +272,7 @@ module.exports = async (req, res) => {
         deskPhone: clean(b.deskPhone, 30),
         cutoffHours: Math.min(Math.max(b.cutoffHours === "" || b.cutoffHours == null ? 48 : Number(b.cutoffHours) || 0, 0), 720),
         backfillN: Math.min(Math.max(Number(b.backfillN) || 3, 1), 10),
+        ...(b.perCentre != null ? { perCentre: b.perCentre === true || b.perCentre === "true" } : {}),
         treatments: (Array.isArray(b.treatments) ? b.treatments : [])
           .map((x) => ({ name: clean(x.name, 60), price: Number(x.price) || 0 }))
           .filter((x) => x.name)
@@ -244,6 +315,20 @@ module.exports = async (req, res) => {
       return res.json({ ok: true, appt: withStatus(a) });
     }
 
+    if (act === "create_roster") {
+      const st = await studio(s);
+      const fams = (Array.isArray(b.families) ? b.families : [b]).slice(0, 200);
+      const out = [];
+      for (const f of fams) {
+        const missing = [!clean(f.client) && "parent name", !clean(f.phone) && "phone", !clean(f.seat) && "child / class", !Date.parse(f.at) && "term start"].filter(Boolean);
+        if (missing.length) return res.status(400).json({ error: "Please fill in: " + missing.join(", ") + "." });
+        const a = rosterEntry(s, { currency: st.currency, terms: st.terms, payNote: st.payNote, cutoffDays: st.cutoffDays, ...f });
+        await saveNew(s, a);
+        out.push(withStatus(a));
+      }
+      return res.json({ ok: true, appts: out });
+    }
+
     if (act === "cancel" || act === "reminded") {
       const a = await store.get(K.appt(clean(b.id, 20)));
       if (!a || a.s !== s) return res.status(404).json({ error: "Appointment not found." });
@@ -263,6 +348,7 @@ module.exports = async (req, res) => {
         phone: clean(b.phone, 30),
         lang: lang(b.lang),
         treatment: clean(b.treatment, 60) || "Any",
+        centre: clean(b.centre, 40),
         earliest: earliest ? new Date(earliest).toISOString() : "",
         added: new Date().toISOString(),
       };
@@ -290,7 +376,9 @@ module.exports = async (req, res) => {
       const wl = await waitlist(s);
       const offered = new Set(a.offers.map((o) => o.w));
       const max = Math.min(Math.max(Number(b.count) || (await studio(s)).backfillN || 3, 1), 10);
-      const pick = wl.filter((w) => !offered.has(w.id) && sameTreatment(w.treatment, a.treatment) && availableBy(w, a.at)).slice(0, max);
+      const stc = await studio(s);
+      const centreOk = (w) => !a.centre || !stc.perCentre || clean(w.centre).toLowerCase() === a.centre.toLowerCase();
+      const pick = wl.filter((w) => !offered.has(w.id) && (a.centre ? true : sameTreatment(w.treatment, a.treatment)) && centreOk(w) && availableBy(w, a.at)).slice(0, max);
       if (!pick.length)
         return res.json({ ok: true, offers: [], appt: withStatus(a), message: `No one new on the waitlist matches ${a.treatment} at that time. Add people to the waitlist, then tap Backfill again.` });
       const offers = [];
