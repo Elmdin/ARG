@@ -38,5 +38,14 @@ module.exports = {
     const rows = backend === "redis" ? await (await tcp()).lRange(KEY, 0, -1) : (await rest(["LRANGE", KEY, "0", "-1"])) || [];
     return rows.map((s) => JSON.parse(s));
   },
+  // Generic list helpers (used by the request queue).
+  push: async (key, obj) =>
+    backend === "redis" ? (await tcp()).rPush(key, JSON.stringify(obj)) : rest(["RPUSH", key, JSON.stringify(obj)]),
+  list: async (key) => {
+    const rows = backend === "redis" ? await (await tcp()).lRange(key, 0, -1) : (await rest(["LRANGE", key, "0", "-1"])) || [];
+    return rows.map((s) => JSON.parse(s));
+  },
+  set: async (key, i, obj) =>
+    backend === "redis" ? (await tcp()).lSet(key, i, JSON.stringify(obj)) : rest(["LSET", key, String(i), JSON.stringify(obj)]),
   ping: async () => (backend === "redis" ? (await tcp()).ping() : rest(["PING"])),
 };

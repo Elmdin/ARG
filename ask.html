@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex"><title>Team requests</title><link rel="stylesheet" href="styles.css">
+<style>.ask{border-top:1px solid var(--line);padding:12px 0}.ask h4{margin:0;display:flex;justify-content:space-between;gap:8px}
+.st{font-size:.75rem;font-weight:700;padding:2px 10px;border-radius:999px;text-transform:uppercase;white-space:nowrap}
+.queued{background:#3d3113;color:#f5c451}.building{background:#13283d;color:#6db7ff}.live{background:#12392b;color:#3ddc97}.question{background:#3d1717;color:#ff9a9a}
+.ask pre{white-space:pre-wrap;font:inherit;color:var(--muted);margin:6px 0 0}</style></head>
+<body><main class="wrap" style="padding-top:24px;padding-bottom:48px">
+<h2>Team Quotax · customer requests</h2>
+<p class="muted" style="color:var(--muted)">Paste a customer's message (or review result). The builder is notified automatically, builds it, and marks it <b>LIVE</b> here. Then click <b>Send for review</b> in the game.</p>
+<form id="f" class="card form" style="max-width:none">
+<label>Customer<input name="customer" placeholder="Dana Price · Brightline Window Cleaning"></label>
+<label>Their exact message / review feedback<textarea name="text" rows="6" required placeholder="Paste here..."></textarea></label>
+<button class="btn" type="submit">Send to builder</button><p id="m" style="margin:0;color:var(--muted)"></p></form>
+<section style="padding:24px 0"><h3>Requests <span id="live" style="font-size:.8rem;color:var(--muted)"></span></h3><div id="list"></div></section>
+</main>
+<script>
+const k = new URLSearchParams(location.search).get("k") || "";
+const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"})[c]);
+async function load() {
+  const r = await fetch("/api/ask?k=" + encodeURIComponent(k));
+  if (r.status === 403) { document.getElementById("list").textContent = "Missing team key: use the full link the builder sent."; return; }
+  const d = await r.json();
+  document.getElementById("live").textContent = "· updated " + new Date().toLocaleTimeString();
+  document.getElementById("list").innerHTML = (d.asks || []).slice().reverse().map((a) => `<div class="ask"><h4><span>#${a.id} ${esc(a.customer || "Customer")}</span><span class="st ${esc(a.status)}">${a.status === "live" ? "✅ live, send for review" : esc(a.status)}</span></h4>
+    ${a.note ? `<p style="margin:6px 0 0"><b>Builder:</b> ${esc(a.note)}</p>` : ""}<pre>${esc(a.text)}</pre></div>`).join("") || "<p>No requests yet.</p>";
+}
+document.getElementById("f").onsubmit = async (e) => {
+  e.preventDefault(); const fd = Object.fromEntries(new FormData(e.target));
+  const r = await fetch("/api/ask", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ ...fd, k }) });
+  document.getElementById("m").textContent = r.ok ? "Sent! The builder has been notified." : "Failed to send. Try again.";
+  if (r.ok) e.target.reset(); load();
+};
+load(); setInterval(load, 5000);
+</script></body></html>
