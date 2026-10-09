@@ -90,14 +90,16 @@ function show(state, at) {
     document.title = v.studio;
     $("studio").textContent = v.studio;
     const first = String(v.name || "").split(" ")[0];
-    $("head").textContent = v.seat ? (v.kind === "offer" ? `A seat has opened up, ${first}` : `Confirm your child's seat for ${v.term}, ${first}`) : v.kind === "offer" ? L.headOffer(first) : L.headConfirm(first);
+    $("head").textContent = v.hire === "intake" ? `You're in line for ${v.role} at ${v.property}, ${first}` : v.hire === "offer" ? `Job offer: ${v.role} at ${v.property}` : v.seat ? (v.kind === "offer" ? `A seat has opened up, ${first}` : `Confirm your child's seat for ${v.term}, ${first}`) : v.kind === "offer" ? L.headOffer(first) : L.headConfirm(first);
     $("lbl").textContent = L.label;
     $("accept").textContent = L.accept;
     $("details").innerHTML = `<div class="card">
+      ${v.hire ? `<p class="big">${esc(v.role)} · ${esc(v.property)}</p>${v.hire === "offer" ? `<p class="big">Starts ${esc(new Date(v.start + "T12:00:00").toLocaleDateString(L.loc, { weekday: "long", month: "long", day: "numeric" }))} · ${esc(v.pay)}</p>` : ""}<p>${v.hire === "offer" ? "Type your name below to accept this offer" : "Type your name below to hold your spot"} by <b>${esc(stamp(v.cutoff))}</b>.</p>` : `
       <p class="big">${esc(v.seat ? `${v.term} · ${v.seat}${v.centre ? " · " + v.centre : ""}` : v.treatment)}${v.price ? " · " + (v.currency ? esc(v.currency) + " " : "$") + Number(v.price).toLocaleString() + (v.seat ? " per term" : "") : ""}</p>
       <p class="big">${v.seat ? "Term starts " + esc(new Date(v.at).toLocaleDateString(L.loc, { weekday: "long", month: "long", day: "numeric", year: "numeric" })) : esc(when(v.at))}</p>
       ${v.payNote ? `<p>${esc(v.payNote)}</p>` : ""}
       <p>${v.kind === "confirm" ? (v.seat ? `Please confirm by <b>${esc(new Date(v.cutoff).toLocaleDateString(L.loc, { month: "long", day: "numeric", year: "numeric" }))}</b> to keep this seat.` : L.acceptBy(esc(when(v.cutoff)))) : esc(L.first)}</p>
+`}
       ${v.terms ? `<p class="terms">${esc(v.terms)}</p>` : ""}
       ${v.deposit ? `<p><b>${esc(L.deposit(Number(v.deposit).toLocaleString()))}</b> ${esc(v.depositTerms || "")}</p>` : ""}
     </div>`;

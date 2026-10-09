@@ -63,6 +63,14 @@ const DEMO = {
     ],
   },
 };
+DEMO.halcyon = {
+  name: "Halcyon Shore Hotels",
+  mode: "hire",
+  autoAdvance: true,
+  properties: ["Halcyon Shore Santa Monica", "Halcyon Shore Laguna Beach"],
+  roles: ["Front desk agent", "Housekeeper", "Line cook", "Banquet server"],
+  terms: "", termsEs: "", treatments: [], deposit: 0, depositTerms: "",
+};
 // Demo roster for Elimu: Term 1 2027 starts in ~6 weeks; confirm by 3 weeks before.
 const ELIMU_ROSTER = [
   ["Wanjiru Kamau", "Achieng (Grade 4)", "Westlands", 58500, { accepted: true }],
@@ -157,6 +165,67 @@ async function saveNew(s, a) {
   await store.put(K.appt(a.id), a);
   await store.push(K.appts(s), a.id);
 }
+function hireEntry(s, f, kind, opts = {}) {
+  const now = Date.now();
+  const hours = Number(f.cutoffHours) || (kind === "offer" ? 48 : 72);
+  return {
+    id: id(6), s, kind, client: clean(f.client, 80), phone: clean(f.phone, 30), lang: lang(f.lang),
+    property: clean(f.property, 60), role: clean(f.role, 60),
+    treatment: `${clean(f.role, 60)} at ${clean(f.property, 60)}`,
+    start: kind === "offer" ? clean(f.start, 30) : "", pay: kind === "offer" ? clean(f.pay, 40) : "",
+    candidate: f.candidate || "", price: 0,
+    created: opts.created || new Date(now).toISOString(),
+    cutoffHours: hours, cutoff: new Date(Date.parse(opts.created || new Date(now).toISOString()) + hours * 3600e3).toISOString(),
+    at: kind === "offer" && Date.parse(f.start) ? new Date(Date.parse(f.start)).toISOString() : new Date(Date.parse(opts.created || new Date(now).toISOString()) + hours * 3600e3).toISOString(),
+    token: id(9), offers: [],
+  };
+}
+async function seedHalcyon() {
+  if ((await store.list(K.appts("halcyon"))).length) return;
+  if (!(await store.setnx("cb:seeded:halcyon", { at: Date.now() }))) return;
+  const now = Date.now(), h = (n) => new Date(now - n * 3600e3).toISOString();
+  const P = DEMO.halcyon.properties;
+  const rows = [
+    ["Marisol Vega", "310 555 0141", P[0], "Front desk agent", 30, true],
+    ["Jordan Lee", "310 555 0142", P[0], "Front desk agent", 20, true],
+    ["Priya Nair", "310 555 0143", P[0], "Front desk agent", 5, false],
+    ["Carlos Ruiz", "949 555 0144", P[1], "Line cook", 50, true],
+    ["Dana Brooks", "949 555 0145", P[1], "Housekeeper", 80, false],
+    ["Tomas Silva", "949 555 0146", P[1], "Line cook", 10, true],
+  ];
+  const made = [];
+  for (const [client, phone, property, role, ago, confirmed] of rows) {
+    const a = hireEntry("halcyon", { client, phone, property, role }, "intake", { created: h(ago) });
+    if (confirmed) { a.acceptedAt = h(ago - 2); a.acceptedName = client; }
+    await saveNew("halcyon", a); made.push(a);
+  }
+  // An offer to Marisol that lapsed, so auto-advance has something to show.
+  const o = hireEntry("halcyon", { client: "Marisol Vega", phone: "310 555 0141", property: P[0], role: "Front desk agent", start: new Date(now + 10 * 86400e3).toISOString().slice(0, 10), pay: "$24/hr", candidate: made[0].id }, "offer", { created: h(50) });
+  await saveNew("halcyon", o);
+}
+// Hiring: when an offer lapses, offer the same job to the next confirmed candidate (property + role), newest reply first.
+async function autoAdvance(s, appts) {
+  const st = await studio(s);
+  if (!st.autoAdvance) return false;
+  let changed = false;
+  for (const o of appts.filter((a) => a.kind === "offer" && a.status === "LAPSED" && !a.advancedTo)) {
+    const offered = new Set(appts.filter((a) => a.kind === "offer" && a.property === o.property && a.role === o.role).map((a) => a.candidate));
+    const next = appts.filter((a) => a.kind === "intake" && a.status === "CONFIRMED" && a.property === o.property && a.role === o.role && !offered.has(a.id))
+      .sort((x, y) => Date.parse(y.acceptedAt) - Date.parse(x.acceptedAt))[0];
+    if (!(await store.setnx("cb:adv:" + o.id, { at: Date.now() }))) continue;
+    const raw = await store.get(K.appt(o.id));
+    if (next) {
+      const n = hireEntry(s, { client: next.client, phone: next.phone, lang: next.lang, property: o.property, role: o.role, start: o.start, pay: o.pay, candidate: next.id }, "offer");
+      n.autoFrom = o.client;
+      await saveNew(s, n);
+      raw.advancedTo = next.client;
+    } else raw.advancedTo = "(no confirmed candidate left)";
+    await store.put(K.appt(o.id), raw);
+    changed = true;
+  }
+  return changed;
+}
+
 async function seedElimu() {
   if ((await store.list(K.appts("elimu"))).length) return;
   if (!(await store.setnx("cb:seeded:elimu", { at: Date.now() }))) return;
@@ -202,6 +271,11 @@ module.exports = async (req, res) => {
           seat: a.seat || "",
           term: a.term || "",
           payNote: a.payNote || "",
+          hire: a.kind || "",
+          role: a.role || "",
+          property: a.property || "",
+          start: a.start || "",
+          pay: a.pay || "",
           at: a.at,
           cutoff: a.cutoff,
           terms: a.terms,
@@ -213,7 +287,9 @@ module.exports = async (req, res) => {
       const s = sid(q.s);
       if (!s) return res.status(400).json({ error: "Add a location id to the address, e.g. ?s=seawall" });
       if (s === "elimu") await seedElimu();
-      const [st, appts, wl] = await Promise.all([studio(s), loadAppts(s), waitlist(s)]);
+      if (s === "halcyon") await seedHalcyon();
+      let [st, appts, wl] = await Promise.all([studio(s), loadAppts(s), waitlist(s)]);
+      if (appts.some((a) => a.kind === "offer") && (await autoAdvance(s, appts))) appts = await loadAppts(s);
       return res.json({ studio: st, appts, waitlist: wl, now: new Date().toISOString() });
     }
 
@@ -272,6 +348,7 @@ module.exports = async (req, res) => {
         deskPhone: clean(b.deskPhone, 30),
         cutoffHours: Math.min(Math.max(b.cutoffHours === "" || b.cutoffHours == null ? 48 : Number(b.cutoffHours) || 0, 0), 720),
         backfillN: Math.min(Math.max(Number(b.backfillN) || 3, 1), 10),
+        ...(b.autoAdvance != null ? { autoAdvance: b.autoAdvance === true || b.autoAdvance === "true" } : {}),
         ...(b.perCentre != null ? { perCentre: b.perCentre === true || b.perCentre === "true" } : {}),
         treatments: (Array.isArray(b.treatments) ? b.treatments : [])
           .map((x) => ({ name: clean(x.name, 60), price: Number(x.price) || 0 }))
@@ -312,6 +389,21 @@ module.exports = async (req, res) => {
       await store.put(K.tok(a.token), { a: a.id, k: "c" });
       await store.put(K.appt(a.id), a);
       await store.push(K.appts(s), a.id);
+      return res.json({ ok: true, appt: withStatus(a) });
+    }
+
+    if (act === "intake" || act === "offer") {
+      let f = b;
+      if (act === "offer") {
+        const c = await store.get(K.appt(clean(b.candidate, 20)));
+        if (!c || c.s !== s) return res.status(404).json({ error: "Candidate not found." });
+        f = { ...b, client: c.client, phone: c.phone, lang: c.lang, property: c.property, role: c.role, candidate: c.id };
+        if (!clean(b.start) || !clean(b.pay)) return res.status(400).json({ error: "Please fill in: start date, pay." });
+      }
+      const missing = [!clean(f.client) && "name", !clean(f.phone) && "phone", !clean(f.property) && "property", !clean(f.role) && "role"].filter(Boolean);
+      if (missing.length) return res.status(400).json({ error: "Please fill in: " + missing.join(", ") + "." });
+      const a = hireEntry(s, f, act);
+      await saveNew(s, a);
       return res.json({ ok: true, appt: withStatus(a) });
     }
 
