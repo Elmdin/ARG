@@ -39,12 +39,17 @@
       .items input { padding: 6px; font-size: .85rem; }
       .kpis { grid-template-columns: 1fr; }
     }
-    #proposal { display: none; }
+    #proposal { overflow-x: auto; }
+    #proposal table { width: 100%; border-collapse: collapse; margin: 16px 0; }
+    @media (max-width: 600px) { #proposal { padding: 16px !important; font-size: .85rem; } #proposal td, #proposal th { padding: 6px 4px; } }
+    #proposal td, #proposal th { border-bottom: 1px solid #ddd; padding: 8px; text-align: left; }
+    #proposal td.r, #proposal th.r { text-align: right; }
+    #proposal .meta { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 12px; color: #444; }
     @media print {
       body { background: #fff; color: #111; }
-      .nav, .app, .foot { display: none !important; }
-      #proposal { display: block !important; color: #111; padding: 24px; }
-      #proposal table { width: 100%; border-collapse: collapse; } #proposal td, #proposal th { border-bottom: 1px solid #ddd; padding: 8px; text-align: left; }
+      .nav, .app, .foot, #quote-out .actions { display: none !important; }
+      #quote-out { display: block !important; padding: 0 !important; }
+      #proposal { border: 0 !important; }
     }
   </style>
 </head>
@@ -103,8 +108,8 @@
       </div>
 
       <div class="actions">
-        <button class="btn" id="simulate" type="button">🎯 Test with AI buyers</button>
-        <button class="btn btn-ghost" id="print" type="button">📄 Proposal / PDF</button>
+        <button class="btn" id="generate" type="button">📄 Generate quote</button>
+        <button class="btn btn-ghost" id="simulate" type="button">🎯 Test with AI buyers</button>
       </div>
     </section>
 
@@ -115,8 +120,11 @@
     </section>
   </main>
 
-  <div id="proposal"></div>
-  <footer class="wrap foot">Quotax · <a href="/deals.html">Deals</a></footer>
+  <section class="wrap" id="quote-out" hidden style="padding:0 16px 40px">
+    <div class="card" id="proposal" style="background:#fff;color:#111;padding:32px"></div>
+    <div class="actions"><button class="btn btn-ghost" id="print" type="button">🖨️ Print / save PDF</button></div>
+  </section>
+  <footer class="wrap foot">Team <b>Quotax</b> · Quotax quote builder · <a href="/deals.html">Deals</a></footer>
 
   <script>
   (function () {
@@ -236,15 +244,32 @@
       b.disabled = false; b.textContent = "🎯 Test with AI buyers";
     };
 
-    $("#print").onclick = () => {
+    let quoteNo = 0;
+    $("#generate").onclick = () => {
       const q = quote(), x = totals();
-      $("#proposal").innerHTML = `<h1 style="margin:0">${esc(q.seller)}</h1><p>Proposal for <b>${esc(q.client)}</b> · ${new Date().toLocaleDateString()}</p>
-        <table><tr><th>Item</th><th>Qty</th><th>Unit</th><th>Amount</th></tr>
-        ${q.items.map((i) => `<tr><td>${esc(i.desc)}</td><td>${i.qty}</td><td>${money(i.price)}</td><td>${money(i.qty * i.price)}</td></tr>`).join("")}</table>
-        <p style="text-align:right">Subtotal ${money(x.sub)}<br>Discount −${money(x.d)}<br>Tax ${x.incl ? "(included) " : ""}${money(x.t)}<br><b style="font-size:1.4em">Total ${money(x.total)}</b></p>
-        <p><b>Payment terms:</b> ${esc(q.terms)}<br><b>Notes:</b> ${esc(q.notes)}</p><p style="margin-top:40px">Accepted by: ______________________ Date: __________</p>`;
-      window.print();
+      if (!q.client.trim()) { alert("Add a client name first."); return $("#client").focus(); }
+      if (!q.items.length) return alert("Add at least one line item.");
+      quoteNo = quoteNo || 1000 + Math.floor(Math.random() * 9000);
+      const no = "Q-" + new Date().getFullYear() + "-" + quoteNo;
+      const date = new Date().toLocaleDateString(undefined, { year: "numeric", month: "long", day: "numeric" });
+      $("#proposal").innerHTML = `
+        <div class="meta"><div><h1 style="margin:0;color:#111">${esc(q.seller)}</h1><div>Quote for <b id="q-client">${esc(q.client)}</b></div></div>
+        <div style="text-align:right"><div><b>Quote #</b> <span id="q-number">${no}</span></div><div><b>Date</b> <span id="q-date">${date}</span></div><div><b>Currency</b> ${esc(q.currency)}</div></div></div>
+        <table><thead><tr><th>Description</th><th class="r">Qty</th><th class="r">Unit price</th><th class="r">Amount</th></tr></thead>
+        <tbody>${q.items.map((i) => `<tr><td>${esc(i.desc)}</td><td class="r">${i.qty}</td><td class="r">${money(i.price)}</td><td class="r">${money(i.qty * i.price)}</td></tr>`).join("")}</tbody></table>
+        <table style="width:auto;margin-left:auto"><tbody>
+          <tr><td>Subtotal</td><td class="r">${money(x.sub)}</td></tr>
+          <tr><td>Discount (${q.discount}%)</td><td class="r">−${money(x.d)}</td></tr>
+          <tr><td>Tax (${q.tax}%${x.incl ? ", included" : ""})</td><td class="r">${money(x.t)}</td></tr>
+          <tr><td><b>Total</b></td><td class="r"><b id="q-total" style="font-size:1.3em">${money(x.total)}</b></td></tr>
+        </tbody></table>
+        <p><b>Payment terms:</b> ${esc(q.terms)}<br><b>Notes:</b> ${esc(q.notes)}</p>
+        <p style="margin-top:32px">Accepted by: ______________________ &nbsp; Date: __________</p>
+        <p style="color:#666;font-size:.8em">Prepared with Quotax · Team Quotax</p>`;
+      $("#quote-out").hidden = false;
+      $("#quote-out").scrollIntoView({ behavior: "smooth" });
     };
+    $("#print").onclick = () => window.print();
 
     load(industry);
   })();
