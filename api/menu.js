@@ -8,7 +8,7 @@ const r2 = (n) => Math.round(n * 100) / 100;
 const DEMO = {
   wattlebrook: {
     name: "Wattlebrook Fresh Kitchen · platter menu costing",
-    currency: "AUD", floor: 35,
+    currency: "AUD", floor: 35, pin: "1968",
     ingredients: [
       { name: "Roast chicken", unit: "kg", price: 13.8 },
       { name: "Avocado", unit: "each", price: 2.4 },
@@ -56,13 +56,16 @@ module.exports = async (req, res) => {
     if (req.method === "GET") {
       const m = mid((req.query || {}).m);
       if (!m) return res.status(400).json({ error: "Add ?m=<menu id>" });
-      return res.json(withCosts(await load(m)));
+      const { pin: _p, ...pub } = withCosts(await load(m));
+      return res.json(pub);
     }
     if (req.method !== "POST") return res.status(405).end();
     const b = typeof req.body === "string" ? JSON.parse(req.body || "{}") : req.body || {};
     const m = mid(b.m);
     if (!m) return res.status(400).json({ error: "Missing menu id." });
     const cur = await load(m);
+    // Head office only: every change needs the menu's PIN. Store screens never get it.
+    if (cur.pin && String(b.pin || "") !== cur.pin) return res.status(403).json({ error: "Head office PIN required to change the menu. Stores can quote from it but can't edit it." });
     if (b.action === "ingredient") {
       const ing = (cur.ingredients || []).find((i) => i.name === clean(b.name));
       if (!ing) return res.status(404).json({ error: "No such ingredient." });
@@ -75,12 +78,30 @@ module.exports = async (req, res) => {
       const p = (cur.platters || []).find((x) => x.name === clean(b.name));
       if (!p) return res.status(404).json({ error: "No such platter." });
       p.price = Math.max(0, Number(b.price) || 0); p.priceSet = String(new Date().getFullYear());
+    } else if (b.action === "add_ingredient") {
+      const name = clean(b.name, 60);
+      if (!name) return res.status(400).json({ error: "Ingredient needs a name." });
+      if ((cur.ingredients || []).some((i) => i.name.toLowerCase() === name.toLowerCase())) return res.status(409).json({ error: "That ingredient is already on the list." });
+      cur.ingredients = (cur.ingredients || []).concat({ name, unit: clean(b.unit, 12) || "kg", price: Math.max(0, Number(b.price) || 0) });
+    } else if (b.action === "add_platter") {
+      const name = clean(b.name, 80);
+      if (!name) return res.status(400).json({ error: "Menu item needs a name." });
+      cur.platters = (cur.platters || []).concat({ name, price: Math.max(0, Number(b.price) || 0), priceSet: String(new Date().getFullYear()), parts: [] });
+    } else if (b.action === "part") {
+      // Set (or remove with qty 0) one component of a recipe.
+      const p = (cur.platters || []).find((x) => x.name === clean(b.platter, 80));
+      if (!p) return res.status(404).json({ error: "No such menu item." });
+      const ing = clean(b.name, 60), qty = Math.max(0, Number(b.qty) || 0);
+      if (!(cur.ingredients || []).some((i) => i.name === ing)) return res.status(404).json({ error: "Add that ingredient to the list first." });
+      p.parts = p.parts.filter(([n]) => n !== ing);
+      if (qty > 0) p.parts.push([ing, qty]);
     } else if (b.action === "floor") {
       cur.floor = Math.min(Math.max(Number(b.floor) || 0, 0), 90);
     } else return res.status(400).json({ error: "Unknown action." });
     cur.updated = new Date().toISOString();
     await store.put(key(m), cur);
-    res.json(withCosts(cur));
+    const { pin: _p2, ...pub } = withCosts(cur);
+    res.json(pub);
   } catch (e) {
     console.error("menu", e && e.message);
     res.status(502).json({ error: "Couldn't save that. Try again." });
