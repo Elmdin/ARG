@@ -37,6 +37,7 @@
     .curve div { flex: 1; background: #2a2a3a; border-radius: 2px 2px 0 0; min-height: 2px; }
     .curve .cur { background: #8a8aa0; } .curve .best { background: var(--accent); }
     .legend { display: flex; justify-content: space-between; font-size: .7rem; color: var(--muted); }
+    .items [data-f="desc"] { min-width: 150px; } .items [data-f="bill"] { min-width: 96px; padding: 6px 4px; }
     @media (max-width: 600px) {
       .items .n { width: 52px; } .items .p { width: 78px; } .items .amt { width: 72px; font-size: .8rem; }
       .items input { padding: 6px; font-size: .85rem; }
@@ -551,7 +552,7 @@
           <tr><td><b>Monthly recurring total</b></td><td class="r"><b id="q-mrc" style="font-size:1.3em">${money(xm.total)}</b> <span style="color:#666">/ month</span></td></tr>
           ${q.term ? `<tr><td>Contract term</td><td class="r" id="q-term">${q.term} months</td></tr><tr><td><b>Total contract value</b> <span style="color:#666;font-size:.85em">(one-time + ${q.term} × monthly)</span></td><td class="r"><b id="q-tcv">${money(r2(x.total + xm.total * q.term))}</b></td></tr>` : ""}
         </tbody></table>
-        <p id="q-billing-note" style="margin:8px 0 0;color:#333"><b>Recurring charges are billed monthly. Installation and activation fees are one-time.</b></p>` : ""}
+        <p id="q-billing-note" style="margin:8px 0 0;color:#333"><b>${q.signatory ? "Recurring charges are billed monthly. Installation and activation fees are one-time." : "Recurring charges are billed monthly. One-time charges are billed per the payment schedule."}</b></p>` : ""}
         ${(q.stages || []).length ? `<h3 style="margin:16px 0 0;color:#111">Payment schedule</h3>
         <table id="q-stages"><thead><tr><th>Stage</th><th class="r">%</th><th class="r">Amount</th></tr></thead><tbody>
           ${stageAmounts(x.total, q.stages).map((st, i) => `<tr><td>${i + 1}. ${esc(st.label || "Stage " + (i + 1))}</td><td class="r">${st.pct}%</td><td class="r" data-stage-amount="${i}">${money(st.amount)}</td></tr>`).join("")}
