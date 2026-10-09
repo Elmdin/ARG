@@ -1,0 +1,251 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Confirm & Backfill</title><link rel="icon" href="/favicon.svg" type="image/svg+xml"><link rel="stylesheet" href="styles.css">
+<style>
+  [hidden] { display: none !important; }
+  section { padding: 20px 0; }
+  .cb .btn { min-height: 48px; font-size: 1.05rem; }
+  .cb input, .cb select, .cb textarea { min-height: 48px; font-size: 16px; }
+  .row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+  .row > * { flex: 1 1 140px; }
+  .badge { display: inline-block; font-weight: 800; font-size: .8rem; letter-spacing: .06em; padding: 4px 10px; border-radius: 999px; }
+  .b-PENDING { background: #3a3a4a; color: #fff; }
+  .b-CONFIRMED { background: #1f8f5f; color: #fff; }
+  .b-UNCONFIRMED { background: #d94848; color: #fff; }
+  .b-CANCELLED { background: #6b6b78; color: #fff; }
+  .b-FILLED { background: #2f6fd6; color: #fff; }
+  .appt { margin: 12px 0; }
+  .appt h3 { display: flex; justify-content: space-between; gap: 8px; align-items: center; }
+  .appt .meta { color: var(--muted); margin: 4px 0 10px; }
+  .appt .btns { display: flex; gap: 8px; flex-wrap: wrap; }
+  .appt .btns .btn { flex: 1 1 140px; text-align: center; }
+  .alert { background: #3b1414; border: 2px solid #d94848; border-radius: 14px; padding: 16px; font-weight: 700; margin: 12px 0; }
+  .msg { border-radius: 10px; padding: 12px 14px; margin: 10px 0; font-weight: 600; }
+  .msg.ok { background: #12301f; border: 1px solid #1f8f5f; }
+  .msg.err { background: #3b1414; border: 1px solid #d94848; }
+  .offers { margin-top: 10px; border-top: 1px solid var(--line); padding-top: 10px; }
+  .offers li { margin: 8px 0; }
+  .wl li { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 10px 0; border-bottom: 1px solid var(--line); }
+  ul { list-style: none; padding: 0; margin: 0; }
+  details summary { cursor: pointer; font-weight: 700; padding: 12px 0; min-height: 48px; }
+  .muted { color: var(--muted); }
+  @media (max-width: 600px) { h2 { font-size: 1.4rem; } }
+</style></head>
+<body class="cb">
+<header class="nav"><div class="wrap nav-in"><a class="brand" href="#" id="studioName">Confirm & Backfill</a>
+  <nav><a href="#new">New</a><a href="#waitlist">Waitlist</a></nav></div></header>
+<main class="wrap">
+  <section>
+    <p class="eyebrow">Confirm & Backfill</p>
+    <div id="alert" role="alert" aria-live="polite"></div>
+    <div id="status" role="status" aria-live="polite"></div>
+    <h2>Appointments</h2>
+    <div id="list"><p class="muted">Loading…</p></div>
+  </section>
+
+  <section id="new">
+    <h2>New appointment</h2>
+    <form id="f" class="form" autocomplete="off">
+      <label>Client name<input name="client" required></label>
+      <label>Client phone<input name="phone" type="tel" inputmode="tel" placeholder="(555) 123-4567" required></label>
+      <label>Treatment<select name="treatment" id="treatment"></select></label>
+      <label id="otherWrap" hidden>Treatment name<input name="treatmentOther"></label>
+      <label>Price ($)<input name="price" type="number" inputmode="decimal" min="0" step="1"></label>
+      <label>Date and time<input name="at" type="datetime-local" required></label>
+      <label>Client must accept by (hours before)<input name="cutoffHours" type="number" min="0" max="720" value="48"></label>
+      <label>Cancellation terms<textarea name="terms" rows="3"></textarea></label>
+      <label>Deposit ($, optional; not charged here)<input name="deposit" type="number" min="0" step="1"></label>
+      <label>Deposit terms (optional)<textarea name="depositTerms" rows="2"></textarea></label>
+      <button class="btn" type="submit" id="create">Save &amp; get text</button>
+      <div id="fmsg" role="status" aria-live="polite"></div>
+    </form>
+  </section>
+
+  <section id="waitlist">
+    <h2>Waitlist</h2>
+    <ul class="wl" id="wl"></ul>
+    <form id="wf" class="form" autocomplete="off" style="margin-top:14px">
+      <div class="row">
+        <label>Name<input name="name" required></label>
+        <label>Phone<input name="phone" type="tel" inputmode="tel" required></label>
+      </div>
+      <label>Treatment wanted<select name="treatment" id="wtreatment"></select></label>
+      <button class="btn btn-ghost" type="submit" id="wladd">Add to waitlist</button>
+      <div id="wmsg" role="status" aria-live="polite"></div>
+    </form>
+  </section>
+
+  <section>
+    <details><summary>Studio settings (name, treatments, default terms)</summary>
+      <form id="sf" class="form">
+        <label>Studio name<input name="name"></label>
+        <label>Treatments, one per line as "Name, price"<textarea name="treatments" rows="4"></textarea></label>
+        <label>Default cancellation terms<textarea name="terms" rows="3"></textarea></label>
+        <label>Default deposit ($)<input name="deposit" type="number" min="0"></label>
+        <label>Default deposit terms<textarea name="depositTerms" rows="2"></textarea></label>
+        <button class="btn btn-ghost" type="submit">Save settings</button>
+        <div id="smsg" role="status" aria-live="polite"></div>
+      </form>
+    </details>
+    <p class="muted">Desk link for this studio: <span id="self"></span></p>
+  </section>
+</main>
+<script>
+const S = (new URLSearchParams(location.search).get("s") || "").toLowerCase();
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s == null ? "" : s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const money = (n) => (Number(n) ? "$" + Number(n).toLocaleString() : "");
+const when = (iso) => new Date(iso).toLocaleString([], { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+let data = null, sent = {};
+
+function say(el, text, ok = true) { $(el).innerHTML = text ? `<div class="msg ${ok ? "ok" : "err"}">${text}</div>` : ""; }
+function phoneE164(p) {
+  let d = String(p).replace(/[^\d+]/g, "");
+  if (!d.startsWith("+")) { d = d.replace(/\D/g, ""); if (d.length === 10) d = "1" + d; d = "+" + d; }
+  return d;
+}
+const smsHref = (phone, body) => `sms:${phoneE164(phone)}?&body=${encodeURIComponent(body)}`;
+const link = (t) => `${location.origin}/c.html?t=${t}`;
+function confirmText(a) {
+  const st = data.studio.name;
+  let m = `Hi ${a.client.split(" ")[0]}, ${st} here. Please confirm your ${a.treatment}${a.price ? " (" + money(a.price) + ")" : ""} on ${when(a.at)}. Tap to accept by ${when(a.cutoff)}: ${link(a.token)}`;
+  return m;
+}
+function offerText(a, o) {
+  return `Hi ${o.name.split(" ")[0]}, ${data.studio.name} here. A ${a.treatment} spot just opened: ${when(a.at)}. First to accept gets it: ${link(o.t)}`;
+}
+async function api(body) {
+  const r = await fetch(body ? "/api/confirm" : "/api/confirm?s=" + encodeURIComponent(S), { method: body ? "POST" : "GET", headers: { "content-type": "application/json" }, body: body ? JSON.stringify({ s: S, ...body }) : undefined });
+  let j = {}; try { j = await r.json(); } catch (_) {}
+  if (!r.ok) throw new Error(j.error || "Request failed (" + r.status + ")");
+  return j;
+}
+async function copy(text, el) {
+  try { await navigator.clipboard.writeText(text); say(el, "Message copied. Paste it into a text to the client."); }
+  catch (_) { say(el, "Copy this message: " + esc(text)); }
+}
+
+function render() {
+  const { studio, appts, waitlist } = data;
+  document.title = studio.name + " · Confirm & Backfill";
+  $("studioName").textContent = studio.name;
+  const un = appts.filter((a) => a.status === "UNCONFIRMED");
+  $("alert").innerHTML = un.length
+    ? `<div class="alert" id="unconfirmedAlert">${un.length} appointment${un.length > 1 ? "s" : ""} UNCONFIRMED (missed the cutoff): ${un.map((a) => esc(a.client) + " · " + esc(when(a.at))).join("; ")}. Tap Backfill to offer the slot to the waitlist.</div>`
+    : "";
+  $("list").innerHTML = appts.length ? appts.map((a) => {
+    const btns = [];
+    if (a.status === "PENDING") {
+      btns.push(`<a class="btn" data-sms="${a.id}" href="${esc(smsHref(a.phone, confirmText(a)))}">Send text</a>`);
+      btns.push(`<button class="btn btn-ghost" data-copy="${a.id}">Copy message</button>`);
+      btns.push(`<button class="btn btn-ghost" data-cancel="${a.id}">Client cancelled</button>`);
+    }
+    if (a.status === "CONFIRMED") btns.push(`<button class="btn btn-ghost" data-cancel="${a.id}">Client cancelled</button>`);
+    if (a.status === "UNCONFIRMED" || a.status === "CANCELLED") btns.push(`<button class="btn" data-backfill="${a.id}">Backfill</button>`);
+    let detail = "";
+    if (a.status === "CONFIRMED") detail = `Accepted by "${esc(a.acceptedName)}" at ${esc(when(a.acceptedAt))}`;
+    if (a.status === "PENDING") detail = `Waiting. Must accept by ${esc(when(a.cutoff))}`;
+    if (a.status === "UNCONFIRMED") detail = `Not accepted by the ${esc(when(a.cutoff))} cutoff`;
+    if (a.status === "CANCELLED") detail = `Cancelled ${esc(when(a.cancelledAt))}`;
+    if (a.status === "FILLED") detail = `Filled by ${esc(a.filledBy.name)} (${esc(a.filledBy.phone)}) at ${esc(when(a.filledBy.at))}`;
+    const open = a.offers && a.offers.length && a.status !== "FILLED" && a.status !== "CONFIRMED" && a.status !== "PENDING";
+    const offers = open ? `<div class="offers"><b>Text these waitlist clients (first to accept wins):</b><ul>${a.offers.map((o) =>
+      `<li><div>${esc(o.name)} · ${esc(o.phone)}</div><div class="btns"><a class="btn" href="${esc(smsHref(o.phone, offerText(a, o)))}">Send text</a><button class="btn btn-ghost" data-ocopy="${a.id}|${o.t}">Copy message</button></div></li>`).join("")}</ul></div>` : "";
+    return `<article class="card appt" data-appt="${a.id}" data-status="${a.status}">
+      <h3><span>${esc(a.client)}</span><span class="badge b-${a.status}">${a.status}</span></h3>
+      <div class="meta">${esc(a.treatment)} ${money(a.price)} · ${esc(when(a.at))} · ${esc(a.phone)}<br>${detail}</div>
+      <div class="btns">${btns.join("")}</div>${offers}<div id="m-${a.id}" role="status" aria-live="polite"></div></article>`;
+  }).join("") : `<p class="muted">No appointments yet. Add one below.</p>`;
+
+  $("wl").innerHTML = waitlist.length ? waitlist.map((w) =>
+    `<li><span><b>${esc(w.name)}</b> · ${esc(w.phone)}<br><span class="muted">${esc(w.treatment)}</span></span><button class="btn btn-ghost btn-sm" data-wlrm="${w.id}">Remove</button></li>`).join("")
+    : `<li class="muted">Nobody waiting yet.</li>`;
+
+  const opts = studio.treatments.map((t) => `<option value="${esc(t.name)}" data-price="${t.price}">${esc(t.name)}${t.price ? " · $" + t.price : ""}</option>`).join("");
+  const keepT = $("treatment").value, keepW = $("wtreatment").value;
+  $("treatment").innerHTML = opts + `<option value="__other">Other…</option>`;
+  $("wtreatment").innerHTML = `<option value="Any">Any treatment</option>` + opts;
+  if (keepT) $("treatment").value = keepT; if (keepW) $("wtreatment").value = keepW;
+}
+
+function fillDefaults() {
+  const f = $("f"), st = data.studio;
+  if (!f.terms.value) f.terms.value = st.terms || "";
+  if (!f.deposit.value && st.deposit) f.deposit.value = st.deposit;
+  if (!f.depositTerms.value) f.depositTerms.value = st.depositTerms || "";
+  syncPrice();
+  const sf = $("sf");
+  sf.name.value = st.name; sf.terms.value = st.terms || ""; sf.deposit.value = st.deposit || "";
+  sf.depositTerms.value = st.depositTerms || "";
+  sf.treatments.value = st.treatments.map((t) => `${t.name}, ${t.price}`).join("\n");
+}
+function syncPrice() {
+  const sel = $("treatment"), o = sel.selectedOptions[0];
+  $("otherWrap").hidden = sel.value !== "__other";
+  if (o && o.dataset.price) $("f").price.value = o.dataset.price;
+}
+
+async function load() {
+  try { data = await api(); render(); }
+  catch (e) { say("status", esc(e.message), false); $("list").innerHTML = ""; }
+}
+
+document.addEventListener("click", async (ev) => {
+  const t = ev.target.closest("[data-copy],[data-cancel],[data-backfill],[data-wlrm],[data-ocopy]");
+  if (!t) return;
+  ev.preventDefault();
+  const d = t.dataset;
+  try {
+    if (d.copy) { const a = data.appts.find((x) => x.id === d.copy); return copy(confirmText(a), "m-" + a.id); }
+    if (d.ocopy) { const [aid, tok] = d.ocopy.split("|"); const a = data.appts.find((x) => x.id === aid); return copy(offerText(a, a.offers.find((o) => o.t === tok)), "m-" + aid); }
+    t.disabled = true;
+    if (d.cancel) { await api({ action: "cancel", id: d.cancel }); await load(); say("m-" + d.cancel, "Marked CANCELLED. Tap Backfill to offer the slot to the waitlist."); }
+    if (d.backfill) {
+      const r = await api({ action: "backfill", id: d.backfill });
+      await load();
+      say("m-" + d.backfill, r.offers.length ? `Backfill ready: ${r.offers.length} waitlist client${r.offers.length > 1 ? "s" : ""} matched. Tap Send text for each. The first to accept gets the slot.` : esc(r.message), !!r.offers.length);
+    }
+    if (d.wlrm) { await api({ action: "wl_remove", id: d.wlrm }); await load(); say("wmsg", "Removed from waitlist."); }
+  } catch (e) { say(d.cancel || d.backfill ? "m-" + (d.cancel || d.backfill) : "status", esc(e.message), false); t.disabled = false; }
+});
+
+$("treatment").addEventListener("change", syncPrice);
+$("f").addEventListener("submit", async (ev) => {
+  ev.preventDefault();
+  const f = ev.target, fd = Object.fromEntries(new FormData(f));
+  const treatment = fd.treatment === "__other" ? fd.treatmentOther : fd.treatment;
+  if (!fd.at) return say("fmsg", "Pick a date and time.", false);
+  $("create").disabled = true;
+  try {
+    const r = await api({ action: "create", client: fd.client, phone: fd.phone, treatment, price: fd.price, at: new Date(fd.at).toISOString(), cutoffHours: fd.cutoffHours, terms: fd.terms, deposit: fd.deposit, depositTerms: fd.depositTerms });
+    await load();
+    const a = r.appt;
+    f.client.value = ""; f.phone.value = ""; f.at.value = "";
+    say("fmsg", `Saved for ${esc(a.client)} (${a.status}). Now send the text:<div class="btns" style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap"><a class="btn" id="sendNew" href="${esc(smsHref(a.phone, confirmText(a)))}">Send text</a><button class="btn btn-ghost" type="button" data-copy="${a.id}">Copy message</button></div><div class="muted" style="margin-top:8px;word-break:break-all">Client link: <a id="newLink" href="${esc(link(a.token))}">${esc(link(a.token))}</a></div>`);
+  } catch (e) { say("fmsg", esc(e.message), false); }
+  $("create").disabled = false;
+});
+$("wf").addEventListener("submit", async (ev) => {
+  ev.preventDefault();
+  const fd = Object.fromEntries(new FormData(ev.target));
+  try { await api({ action: "wl_add", ...fd }); ev.target.name.value = ""; ev.target.phone.value = ""; await load(); say("wmsg", `Added ${esc(fd.name)} to the waitlist.`); }
+  catch (e) { say("wmsg", esc(e.message), false); }
+});
+$("sf").addEventListener("submit", async (ev) => {
+  ev.preventDefault();
+  const fd = Object.fromEntries(new FormData(ev.target));
+  const treatments = fd.treatments.split("\n").map((l) => { const m = l.split(","); return { name: m[0].trim(), price: Number((m[1] || "").replace(/[^\d.]/g, "")) || 0 }; }).filter((x) => x.name);
+  try { await api({ action: "studio", ...fd, treatments }); await load(); fillDefaults(); say("smsg", "Settings saved."); }
+  catch (e) { say("smsg", esc(e.message), false); }
+});
+
+if (!S) {
+  $("list").innerHTML = "";
+  say("status", 'Add your studio id to the address to start, e.g. <a href="?s=seawall">confirm.html?s=seawall</a>', false);
+} else {
+  $("self").textContent = location.origin + location.pathname + "?s=" + S;
+  // Refresh the list on load and every 30 seconds so acceptances and lapsed cutoffs show up on their own.
+  load().then(() => data && fillDefaults());
+  setInterval(() => { if (document.visibilityState === "visible") load(); }, 30000);
+}
+</script></body></html>
