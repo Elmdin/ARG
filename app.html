@@ -61,6 +61,7 @@
     </div>
   </header>
 
+  <noscript><p class="wrap">Quotax needs JavaScript enabled to build quotes.</p></noscript>
   <main class="wrap app">
     <section class="card" style="padding:20px">
       <h2 style="margin-bottom:6px">1 · Build the quote</h2>
@@ -83,7 +84,7 @@
         <thead><tr><th>Item</th><th>Qty</th><th>Unit $</th><th class="amt">Amount</th><th></th></tr></thead>
         <tbody id="rows"></tbody>
       </table></div>
-      <button class="chip" id="add" type="button" style="margin-top:8px">+ Add line</button>
+      <button class="chip" id="add" type="button" style="margin-top:8px" aria-label="Add line item">+ Add line item</button>
 
       <div class="row" style="margin-top:14px">
         <label>Discount %<input id="discount" type="number" min="0" max="100" step="0.5" value="0" /></label>
@@ -104,9 +105,10 @@
         <div><span class="muted">Subtotal</span><span id="sub"></span></div>
         <div><span class="muted">Discount</span><span id="disc"></span></div>
         <div><span class="muted">Tax</span><span id="taxv"></span></div>
-        <div class="grand"><span id="total"></span></div>
+        <div class="grand"><span class="muted" style="font-size:1rem;font-weight:400">Total</span><span id="total"></span></div>
       </div>
 
+      <p id="msg" role="status" aria-live="polite" style="color:#f5c451;min-height:1.2em;margin:8px 0 0"></p>
       <div class="actions">
         <button class="btn" id="generate" type="button">📄 Generate quote</button>
         <button class="btn btn-ghost" id="simulate" type="button">🎯 Test with AI buyers</button>
@@ -129,6 +131,7 @@
   <script>
   (function () {
     const $ = (s) => document.querySelector(s);
+    const say = (t) => { $("#msg").textContent = t || ""; };
     const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
     const money = (n) => {
       const c = (document.querySelector("#cur") || {}).value || "USD";
@@ -137,6 +140,7 @@
     };
 
     const TEMPLATES = {
+      "Blank quote": { seller: "Your Company", client: "", tax: 0, items: [["", 1, 0]] },
       "Agency / consulting": { seller: "Northwind Studio", client: "Acme Dental", tax: 0, items: [["Discovery & strategy workshop", 1, 2400], ["UX/UI design (hours)", 40, 125], ["Development (hours)", 60, 140], ["Booking system integration", 1, 1800], ["Monthly support retainer", 3, 650]] },
       "IT / software": { seller: "BrightOps IT", client: "Harbor Logistics", tax: 8.5, items: [["Onboarding & setup", 1, 3500], ["User licenses (per seat / yr)", 45, 240], ["Data migration", 1, 2200], ["Premium support (per month)", 12, 400]] },
       "Events / catering": { seller: "Golden Fork Events", client: "Lumen Labs", tax: 8.5, items: [["Dinner, 3 courses (per guest)", 120, 68], ["Open bar, 3 hours (per guest)", 120, 32], ["Event staff (per person)", 10, 280], ["Venue styling & rentals", 1, 2600]] },
@@ -165,11 +169,11 @@
     }
     function render() {
       $("#rows").innerHTML = items.map((i, k) => `<tr>
-        <td><input data-k="${k}" data-f="desc" value="${esc(i.desc)}" /></td>
-        <td class="n"><input data-k="${k}" data-f="qty" type="number" min="0" step="any" value="${i.qty}" /></td>
-        <td class="p"><input data-k="${k}" data-f="price" type="number" min="0" step="any" value="${i.price}" /></td>
+        <td><input data-k="${k}" data-f="desc" name="item-${k + 1}-description" aria-label="Line ${k + 1} description" placeholder="Description" value="${esc(i.desc)}" /></td>
+        <td class="n"><input data-k="${k}" data-f="qty" name="item-${k + 1}-quantity" aria-label="Line ${k + 1} quantity" type="number" min="0" step="any" value="${i.qty}" /></td>
+        <td class="p"><input data-k="${k}" data-f="price" name="item-${k + 1}-unit-price" aria-label="Line ${k + 1} unit price" type="number" min="0" step="any" value="${i.price}" /></td>
         <td class="amt" data-amt="${k}"></td>
-        <td><button class="x" data-del="${k}" title="Remove" type="button">×</button></td></tr>`).join("");
+        <td><button class="x" data-del="${k}" title="Remove line ${k + 1}" aria-label="Remove line ${k + 1}" type="button">×</button></td></tr>`).join("");
       recalc();
     }
     function load(name) {
@@ -187,7 +191,7 @@
       const f = e.target.dataset.f; items[k][f] = f === "desc" ? e.target.value : Math.max(0, Number(e.target.value) || 0); recalc();
     });
     $("#rows").addEventListener("click", (e) => { if (e.target.dataset.del != null) { items.splice(e.target.dataset.del, 1); render(); } });
-    $("#add").onclick = () => { items.push({ desc: "New item", qty: 1, price: 100 }); render(); };
+    $("#add").onclick = () => { items.push({ desc: "", qty: 1, price: 0 }); render(); const ins = document.querySelectorAll('#rows input[data-f="desc"]'); ins[ins.length - 1].focus(); };
     ["#discount", "#tax", "#cur", "#incl"].forEach((s) => $(s).addEventListener("input", () => { recalc(); document.querySelectorAll("[data-amt]").length && recalc(); }));
 
     $("#draft").onclick = async () => {
@@ -202,7 +206,7 @@
         if (d.notes) $("#notes").value = d.notes;
         document.querySelectorAll(".chip[data-t]").forEach((c) => c.classList.remove("on"));
         render();
-      } catch (_) { alert("AI drafting is unavailable right now. Pick a template instead."); }
+      } catch (_) { say("AI drafting is unavailable right now. Pick a template instead."); }
       b.disabled = false; b.textContent = "✨ AI draft";
     };
 
@@ -212,7 +216,7 @@
     }
 
     $("#simulate").onclick = async () => {
-      const q = quote(); if (!q.total) return alert("Add at least one priced line item.");
+      const q = quote(); if (!q.total) return say("Add at least one priced line item."); say("");
       const b = $("#simulate"); b.disabled = true; b.textContent = "6 buyers reviewing…";
       $("#room").innerHTML = '<p class="muted" style="margin-top:20px">Sending the quote to Dana, Marcus, Priya, Tom, Lena and Raj…</p>';
       try {
@@ -247,8 +251,9 @@
     let quoteNo = 0;
     $("#generate").onclick = () => {
       const q = quote(), x = totals();
-      if (!q.client.trim()) { alert("Add a client name first."); return $("#client").focus(); }
-      if (!q.items.length) return alert("Add at least one line item.");
+      if (!q.client.trim()) { say("Add a client name first."); return $("#client").focus(); }
+      if (!q.items.length) return say("Add at least one line item.");
+      say("");
       quoteNo = quoteNo || 1000 + Math.floor(Math.random() * 9000);
       const no = "Q-" + new Date().getFullYear() + "-" + quoteNo;
       const date = new Date().toLocaleDateString(undefined, { year: "numeric", month: "long", day: "numeric" });
