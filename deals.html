@@ -3,21 +3,51 @@
 <title>Deals</title><link rel="icon" href="/favicon.svg" type="image/svg+xml"><link rel="stylesheet" href="styles.css"></head>
 <body><main class="wrap"><section><h2>Deals</h2>
 <p id="sum" class="lead">Loading…</p><p id="src" class="eyebrow"></p><pre id="out" class="card out"></pre>
-<button class="btn btn-ghost" id="clear">Clear this device</button>
+<h3 style="margin-top:24px">Quote acceptances <span class="muted" style="font-size:.85rem;color:var(--muted);font-weight:400">(customers clicking Accept on a quote; not counted as LOIs)</span></h3>
+<pre id="acc" class="card out"></pre>
+<div id="log" hidden style="margin-top:24px">
+  <h3>Log a deal signed outside this site</h3>
+  <p style="color:var(--muted);margin-top:0">For deals closed in the game or by chat, so the finals numbers have a source.</p>
+  <form id="df" class="card form" style="max-width:none">
+    <label>Company<input name="company" required placeholder="Maumee Valley Auto Care"></label>
+    <label>Type<select name="kind"><option value="signed">Signed customer</option><option value="loi">LOI</option><option value="preorder">Pre-order</option></select></label>
+    <label>Annual value (ARR, $)<input name="arr" inputmode="decimal" placeholder="28000"></label>
+    <label>Collected so far ($)<input name="collected" inputmode="decimal" placeholder="2200"></label>
+    <label>Plan<input name="plan" placeholder="Team"></label>
+    <label>Signed by<input name="by" placeholder="Travis Hendricks"></label>
+    <button class="btn" type="submit">Log deal</button><p id="dm" style="margin:0;color:var(--muted)"></p>
+  </form>
+</div>
+<button class="btn btn-ghost" id="clear" style="margin-top:24px">Clear this device</button>
 </section></main>
+<script src="teamkey.js"></script>
 <script>
-(async () => {
+const money = (n) => "$" + Math.round(n || 0).toLocaleString("en-US");
+const num = (v) => { const m = String(v ?? "").replace(/,/g, "").match(/(\d+(?:\.\d+)?)\s*([kKmM])?/); return m ? Number(m[1]) * (m[2] ? (/k/i.test(m[2]) ? 1e3 : 1e6) : 1) : 0; };
+async function load() {
   let d = [], src = "this device only";
   try {
     const r = await fetch("/api/loi");
     if (r.ok) { d = (await r.json()).deals; src = "all devices (shared storage)"; }
   } catch (_) {}
   if (src !== "all devices (shared storage)") { try { d = JSON.parse(localStorage.getItem("deals") || "[]"); } catch (_) {} }
-  d = d.filter(x => x.kind === "loi" || x.kind === "preorder");
-  const lois = d.filter(x => x.kind === "loi"), pre = d.filter(x => x.kind === "preorder");
-  document.getElementById("sum").textContent = `${lois.length} LOIs · ${pre.length} pre-orders`;
+  const signed = d.filter(x => x.kind === "signed"), lois = d.filter(x => x.kind === "loi"), pre = d.filter(x => x.kind === "preorder"), acc = d.filter(x => x.kind === "accepted");
+  const collected = pre.reduce((a, x) => a + num(x.price), 0) + signed.reduce((a, x) => a + (Number(x.collected) || 0), 0);
+  const arr = signed.reduce((a, x) => a + (Number(x.arr) || 0), 0);
+  document.getElementById("sum").textContent = `${signed.length} signed · ${lois.length} LOIs · ${pre.length} pre-orders · ${money(collected)} collected · ${money(arr)} ARR`;
   document.getElementById("src").textContent = "Source: " + src;
-  document.getElementById("out").textContent = d.map(x => `${x.at}  ${String(x.kind).toUpperCase()} #${x.id}  ${x.company || ""}  ${x.plan || ""} ${x.price || ""} ${x.name || x.email || ""}`).join("\n") || "None yet.";
-  document.getElementById("clear").onclick = () => { if (confirm("Clear deals stored on this device?")) { try { localStorage.removeItem("deals"); } catch (_) {} location.reload(); } };
-})();
+  document.getElementById("out").textContent = [...signed, ...lois, ...pre].map(x => `${x.at}  ${String(x.kind).toUpperCase()} #${x.id}  ${x.company || ""}  ${x.plan || ""} ${x.price || ""}${x.arr ? " ARR " + money(x.arr) : ""}${x.collected ? " collected " + money(x.collected) : ""}  ${x.name || x.email || ""}`).join("\n") || "None yet.";
+  document.getElementById("acc").textContent = acc.map(x => `${x.at}  ${x.id}  ${x.company || ""}  ${money(x.price)}  accepted by ${x.name || "?"}`).join("\n") || "None yet.";
+}
+if (window.teamKey) {
+  document.getElementById("log").hidden = false;
+  document.getElementById("df").onsubmit = async (e) => {
+    e.preventDefault();
+    const r = await fetch("/api/hq", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ type: "deal", k: window.teamKey, ...Object.fromEntries(new FormData(e.target)) }) });
+    document.getElementById("dm").textContent = r.ok ? "Logged." : "Failed: " + (await r.text());
+    if (r.ok) { e.target.reset(); load(); }
+  };
+}
+document.getElementById("clear").onclick = () => { if (confirm("Clear deals stored on this device?")) { try { localStorage.removeItem("deals"); } catch (_) {} location.reload(); } };
+load();
 </script></body></html>
